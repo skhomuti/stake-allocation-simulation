@@ -1,0 +1,21 @@
+# Environments
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+coverage.xml
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Local env files
+.env
+.env.*
