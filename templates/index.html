@@ -29,6 +29,7 @@
       <a class="button" href="/docs">Open API Docs</a>
       <hr />
       <h2>Router Modules</h2>
+      <div id="share-bars" class="shares" style="margin-bottom: 1rem;"></div>
       <div id="modules" class="modules">Loading…</div>
     </div>
     <script>
@@ -52,7 +53,6 @@
               <th>ID</th>
               <th>Name</th>
               <th>Address</th>
-              <th>Current Share</th>
               <th>Allocated (ETH)</th>
               <th>Active</th>
               <th>Paused</th>
@@ -66,22 +66,80 @@
           table.appendChild(head);
 
           const body = document.createElement('tbody');
-          const bar = (pct) => {
-            if (typeof pct !== 'number') return '';
-            const outer = document.createElement('div');
-            outer.style.background = '#e5e5e5';
-            outer.style.borderRadius = '4px';
-            outer.style.height = '8px';
-            outer.style.width = '100%';
-            const inner = document.createElement('div');
-            inner.style.background = '#3b82f6';
-            inner.style.height = '8px';
-            inner.style.borderRadius = '4px';
-            inner.style.width = Math.max(0, Math.min(100, pct)).toFixed(2) + '%';
-            outer.appendChild(inner);
-            return outer;
-          };
+          // Render important share bars separately
+          const shareWrap = document.getElementById('share-bars');
+          shareWrap.innerHTML = '';
+          const legend = document.createElement('div');
+          legend.className = 'muted';
+          legend.textContent = 'Current vs allowed module share (overflow shown in red)';
+          shareWrap.appendChild(legend);
+          for (const m of data) {
+            const current = typeof m.current_share_pct === 'number' ? m.current_share_pct : 0;
+            const limit = typeof m.target_share_bps === 'number' ? (m.target_share_bps / 100) : 0;
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.gap = '12px';
+            row.style.alignItems = 'center';
+            row.style.margin = '8px 0';
 
+            const left = document.createElement('div');
+            left.style.minWidth = '220px';
+            left.style.flex = '0 0 auto';
+            const name = document.createElement('div');
+            name.textContent = m.name || (m.address ? `${m.address.slice(0,6)}…${m.address.slice(-4)}` : '');
+            const meta = document.createElement('div');
+            meta.className = 'muted';
+            const flag = current > limit ? ' (exceeds limit)' : '';
+            meta.textContent = `${current.toFixed(2)}% of ${limit.toFixed(2)}%${flag}`;
+            left.appendChild(name);
+            left.appendChild(meta);
+
+            const barBox = document.createElement('div');
+            barBox.style.position = 'relative';
+            barBox.style.flex = '1 1 auto';
+            barBox.style.height = '12px';
+            barBox.style.border = '1px solid #ddd';
+            barBox.style.borderRadius = '6px';
+            barBox.style.background = '#f8f8f8';
+
+            const limitDiv = document.createElement('div');
+            limitDiv.style.position = 'absolute';
+            limitDiv.style.left = '0';
+            limitDiv.style.top = '0';
+            limitDiv.style.bottom = '0';
+            limitDiv.style.width = Math.max(0, Math.min(100, limit)).toFixed(2) + '%';
+            limitDiv.style.background = '#e5e7eb';
+
+            const currentDiv = document.createElement('div');
+            const cappedCurrent = Math.min(current, limit);
+            currentDiv.style.position = 'absolute';
+            currentDiv.style.left = '0';
+            currentDiv.style.top = '0';
+            currentDiv.style.bottom = '0';
+            currentDiv.style.width = Math.max(0, Math.min(100, cappedCurrent)).toFixed(2) + '%';
+            currentDiv.style.background = '#3b82f6';
+
+            barBox.appendChild(limitDiv);
+            barBox.appendChild(currentDiv);
+
+            if (current > limit) {
+              const overflowDiv = document.createElement('div');
+              overflowDiv.style.position = 'absolute';
+              overflowDiv.style.top = '0';
+              overflowDiv.style.bottom = '0';
+              overflowDiv.style.left = Math.min(100, limit).toFixed(2) + '%';
+              const overflowWidth = Math.max(0, Math.min(100, current) - Math.min(100, limit));
+              overflowDiv.style.width = overflowWidth.toFixed(2) + '%';
+              overflowDiv.style.background = '#ef4444';
+              barBox.appendChild(overflowDiv);
+            }
+
+            row.appendChild(left);
+            row.appendChild(barBox);
+            shareWrap.appendChild(row);
+          }
+
+          // Raw values table
           for (const m of data) {
             const tr = document.createElement('tr');
             const short = (addr) => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
@@ -98,22 +156,6 @@
             addCell(m.module_id ?? m.id ?? '');
             addCell(m.name ?? '');
             addCell(short(m.address));
-            const pct = typeof m.current_share_pct === 'number' ? m.current_share_pct : null;
-            const pctLabel = pct === null ? '' : pct.toFixed(2) + '%';
-            const wrapper = document.createElement('div');
-            wrapper.style.display = 'flex';
-            wrapper.style.gap = '8px';
-            wrapper.style.alignItems = 'center';
-            const barEl = bar(pct ?? 0);
-            if (barEl) {
-              barEl.style.flex = '1 1 auto';
-              barEl.style.minWidth = '80px';
-              wrapper.appendChild(barEl);
-            }
-            const label = document.createElement('span');
-            label.textContent = pctLabel;
-            wrapper.appendChild(label);
-            addCell(wrapper, true);
             const alloc = typeof m.allocated_eth === 'number' ? m.allocated_eth : '';
             addCell(alloc);
             addCell(m.is_active === true ? 'Yes' : (m.is_active === false ? 'No' : ''));
