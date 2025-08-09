@@ -76,6 +76,7 @@
           for (const m of data) {
             const current = typeof m.current_share_pct === 'number' ? m.current_share_pct : 0;
             const limit = typeof m.target_share_bps === 'number' ? (m.target_share_bps / 100) : 0;
+            const totalScale = Math.max(current, limit);
             const row = document.createElement('div');
             row.style.display = 'flex';
             row.style.gap = '12px';
@@ -101,13 +102,16 @@
             barBox.style.border = '1px solid #ddd';
             barBox.style.borderRadius = '6px';
             barBox.style.background = '#f8f8f8';
+            // Limit the maximum length of the bar by module share scale (or overflowed current)
+            barBox.style.width = totalScale.toFixed(2) + '%';
 
             const limitDiv = document.createElement('div');
             limitDiv.style.position = 'absolute';
             limitDiv.style.left = '0';
             limitDiv.style.top = '0';
             limitDiv.style.bottom = '0';
-            limitDiv.style.width = Math.max(0, Math.min(100, limit)).toFixed(2) + '%';
+            const limitRel = totalScale > 0 ? (limit / totalScale) * 100 : 0;
+            limitDiv.style.width = Math.max(0, Math.min(100, limitRel)).toFixed(2) + '%';
             limitDiv.style.background = '#e5e7eb';
 
             const currentDiv = document.createElement('div');
@@ -116,7 +120,8 @@
             currentDiv.style.left = '0';
             currentDiv.style.top = '0';
             currentDiv.style.bottom = '0';
-            currentDiv.style.width = Math.max(0, Math.min(100, cappedCurrent)).toFixed(2) + '%';
+            const currentRel = totalScale > 0 ? (cappedCurrent / totalScale) * 100 : 0;
+            currentDiv.style.width = Math.max(0, Math.min(100, currentRel)).toFixed(2) + '%';
             currentDiv.style.background = '#3b82f6';
 
             barBox.appendChild(limitDiv);
@@ -127,9 +132,10 @@
               overflowDiv.style.position = 'absolute';
               overflowDiv.style.top = '0';
               overflowDiv.style.bottom = '0';
-              overflowDiv.style.left = Math.min(100, limit).toFixed(2) + '%';
-              const overflowWidth = Math.max(0, Math.min(100, current) - Math.min(100, limit));
-              overflowDiv.style.width = overflowWidth.toFixed(2) + '%';
+              const leftRel = totalScale > 0 ? (limit / totalScale) * 100 : 0;
+              overflowDiv.style.left = Math.min(100, leftRel).toFixed(2) + '%';
+              const overflowRel = totalScale > 0 ? ((current - limit) / totalScale) * 100 : 0;
+              overflowDiv.style.width = Math.max(0, Math.min(100, overflowRel)).toFixed(2) + '%';
               overflowDiv.style.background = '#ef4444';
               barBox.appendChild(overflowDiv);
             }
