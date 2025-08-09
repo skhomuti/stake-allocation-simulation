@@ -34,6 +34,13 @@ class EthAdapter:
             ) from exc
 
     def list_modules(self, router_address: str, router_abi: str) -> List[Dict[str, Any]]:
+        """Return staking modules with best-effort enrichment.
+
+        Tries in order:
+        1) getAllStakingModuleDigests() + per-id flag/counter getters
+        2) Enumerate ids (getStakingModuleIds/getStakingModulesCount) + per-id getters
+        3) Fallback to getStakingModules() returning only addresses
+        """
         router = self.contract(router_address, router_abi)
 
         # 0) Preferred: try `getAllStakingModuleDigests()` which returns rich info including
