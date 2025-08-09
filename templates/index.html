@@ -27,7 +27,77 @@
         </ul>
       </p>
       <a class="button" href="/docs">Open API Docs</a>
+      <hr />
+      <h2>Router Modules</h2>
+      <div id="modules" class="modules">Loading…</div>
     </div>
+    <script>
+      async function loadModules() {
+        const el = document.getElementById('modules');
+        try {
+          const res = await fetch('/api/modules');
+          if (!res.ok) throw new Error('Failed to load modules');
+          const data = await res.json();
+          if (!Array.isArray(data) || data.length === 0) {
+            el.textContent = 'No modules found (configure RPC/ABIs).';
+            return;
+          }
+          const table = document.createElement('table');
+          table.style.width = '100%';
+          table.style.borderCollapse = 'collapse';
+
+          const head = document.createElement('thead');
+          head.innerHTML = `
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Address</th>
+              <th>Active</th>
+              <th>Paused</th>
+              <th>Stopped</th>
+              <th>Share</th>
+              <th>Active Validators</th>
+              <th>Max/Block</th>
+              <th>Min Block Distance</th>
+              <th>Last Deposit Block</th>
+            </tr>`;
+          table.appendChild(head);
+
+          const body = document.createElement('tbody');
+          for (const m of data) {
+            const tr = document.createElement('tr');
+            const short = (addr) => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
+            const bpsToPct = (bps) => (typeof bps === 'number' ? (bps/100).toFixed(2) + '%' : '');
+            const cells = [
+              m.module_id ?? m.id ?? '',
+              m.name ?? '',
+              short(m.address),
+              m.is_active === true ? 'Yes' : (m.is_active === false ? 'No' : ''),
+              m.is_deposits_paused === true ? 'Yes' : (m.is_deposits_paused === false ? 'No' : ''),
+              m.is_stopped === true ? 'Yes' : (m.is_stopped === false ? 'No' : ''),
+              bpsToPct(m.target_share_bps),
+              m.active_validators ?? '',
+              m.max_deposits_per_block ?? '',
+              m.min_deposit_block_distance ?? '',
+              m.last_deposit_block ?? '',
+            ];
+            for (const c of cells) {
+              const td = document.createElement('td');
+              td.style.borderTop = '1px solid #ddd';
+              td.style.padding = '6px 8px';
+              td.textContent = String(c);
+              tr.appendChild(td);
+            }
+            body.appendChild(tr);
+          }
+          table.appendChild(body);
+          el.replaceChildren(table);
+        } catch (err) {
+          el.textContent = 'Error loading modules. Check console and config.';
+          console.error(err);
+        }
+      }
+      loadModules();
+    </script>
   </body>
   </html>
-

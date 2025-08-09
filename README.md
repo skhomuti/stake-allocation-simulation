@@ -33,9 +33,3 @@ Open http://localhost:8000 to view the single frontend page.
 
 API docs: http://localhost:8000/docs
 
-## Tests
-
-- Ensure dev deps installed: `uv sync --extra dev`
-- Run tests: `uv run pytest -q`
-
-Optional (pip): `pytest -q`
