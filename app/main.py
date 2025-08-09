@@ -7,7 +7,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import app.deps as deps
-from app.models import Module
 from app.services.router_service import RouterService
 
 app = FastAPI(title="Stake Allocation Simulation")
