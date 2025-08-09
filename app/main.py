@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from typing import List
+from typing import List, Dict, Any
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -30,4 +30,19 @@ async def index(request: Request):
 @app.get("/api/modules", tags=["api"])
 async def api_modules(service: RouterService = Depends(deps.get_router_service)) -> List[dict]:
     modules = service.list_modules()
-    return [asdict(m) for m in modules]
+
+    # Compute current allocation state based on active validators
+    total_active = sum((m.active_validators or 0) for m in modules)
+
+    enriched: List[Dict[str, Any]] = []
+    for m in modules:
+        d = asdict(m)
+        active = m.active_validators or 0
+        allocated_eth = active * 32
+        current_share_pct = (active / total_active * 100.0) if total_active > 0 else None
+        d.update({
+            "allocated_eth": allocated_eth,
+            "current_share_pct": current_share_pct,
+        })
+        enriched.append(d)
+    return enriched

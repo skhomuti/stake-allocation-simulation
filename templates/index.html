@@ -52,6 +52,8 @@
               <th>ID</th>
               <th>Name</th>
               <th>Address</th>
+              <th>Current Share</th>
+              <th>Allocated (ETH)</th>
               <th>Active</th>
               <th>Paused</th>
               <th>Stopped</th>
@@ -64,30 +66,64 @@
           table.appendChild(head);
 
           const body = document.createElement('tbody');
+          const bar = (pct) => {
+            if (typeof pct !== 'number') return '';
+            const outer = document.createElement('div');
+            outer.style.background = '#e5e5e5';
+            outer.style.borderRadius = '4px';
+            outer.style.height = '8px';
+            outer.style.width = '100%';
+            const inner = document.createElement('div');
+            inner.style.background = '#3b82f6';
+            inner.style.height = '8px';
+            inner.style.borderRadius = '4px';
+            inner.style.width = Math.max(0, Math.min(100, pct)).toFixed(2) + '%';
+            outer.appendChild(inner);
+            return outer;
+          };
+
           for (const m of data) {
             const tr = document.createElement('tr');
             const short = (addr) => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
             const bpsToPct = (bps) => (typeof bps === 'number' ? (bps/100).toFixed(2) + '%' : '');
-            const cells = [
-              m.module_id ?? m.id ?? '',
-              m.name ?? '',
-              short(m.address),
-              m.is_active === true ? 'Yes' : (m.is_active === false ? 'No' : ''),
-              m.is_deposits_paused === true ? 'Yes' : (m.is_deposits_paused === false ? 'No' : ''),
-              m.is_stopped === true ? 'Yes' : (m.is_stopped === false ? 'No' : ''),
-              bpsToPct(m.target_share_bps),
-              m.active_validators ?? '',
-              m.max_deposits_per_block ?? '',
-              m.min_deposit_block_distance ?? '',
-              m.last_deposit_block ?? '',
-            ];
-            for (const c of cells) {
+            const cells = [];
+            const addCell = (content, isNode=false) => {
               const td = document.createElement('td');
               td.style.borderTop = '1px solid #ddd';
               td.style.padding = '6px 8px';
-              td.textContent = String(c);
+              if (isNode) td.appendChild(content); else td.textContent = String(content);
               tr.appendChild(td);
+            };
+
+            addCell(m.module_id ?? m.id ?? '');
+            addCell(m.name ?? '');
+            addCell(short(m.address));
+            const pct = typeof m.current_share_pct === 'number' ? m.current_share_pct : null;
+            const pctLabel = pct === null ? '' : pct.toFixed(2) + '%';
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.gap = '8px';
+            wrapper.style.alignItems = 'center';
+            const barEl = bar(pct ?? 0);
+            if (barEl) {
+              barEl.style.flex = '1 1 auto';
+              barEl.style.minWidth = '80px';
+              wrapper.appendChild(barEl);
             }
+            const label = document.createElement('span');
+            label.textContent = pctLabel;
+            wrapper.appendChild(label);
+            addCell(wrapper, true);
+            const alloc = typeof m.allocated_eth === 'number' ? m.allocated_eth : '';
+            addCell(alloc);
+            addCell(m.is_active === true ? 'Yes' : (m.is_active === false ? 'No' : ''));
+            addCell(m.is_deposits_paused === true ? 'Yes' : (m.is_deposits_paused === false ? 'No' : ''));
+            addCell(m.is_stopped === true ? 'Yes' : (m.is_stopped === false ? 'No' : ''));
+            addCell(bpsToPct(m.target_share_bps));
+            addCell(m.active_validators ?? '');
+            addCell(m.max_deposits_per_block ?? '');
+            addCell(m.min_deposit_block_distance ?? '');
+            addCell(m.last_deposit_block ?? '');
             body.appendChild(tr);
           }
           table.appendChild(body);
