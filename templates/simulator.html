@@ -39,7 +39,7 @@
         border-radius: 14px;
         padding: 18px 16px;
       }
-      .controls { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: end; }
+      .controls { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 12px; align-items: end; }
       .control { display: grid; gap: 6px; }
       .label { color: var(--muted); font-size: 12px; }
       .number {
@@ -52,6 +52,16 @@
         font-size: 14px;
         width: 200px;
       }
+      .range {
+        width: 100%;
+        height: 38px;
+        background: transparent;
+        -webkit-appearance: none;
+      }
+      .range::-webkit-slider-runnable-track { height: 6px; background: #223048; border-radius: 999px; }
+      .range::-moz-range-track { height: 6px; background: #223048; border-radius: 999px; }
+      .range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #7dd3fc; margin-top: -6px; border: 1px solid #3b82f6; }
+      .range::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #7dd3fc; border: 1px solid #3b82f6; }
       .btn {
         background: transparent;
         color: var(--fg);
@@ -103,6 +113,10 @@
           <div class="control">
             <label class="label" for="inp-eth">Simulate deposits (ETH)</label>
             <input id="inp-eth" class="number" type="number" min="0" step="32" value="0" />
+          </div>
+          <div class="control">
+            <label class="label" for="range-eth">Quick adjust</label>
+            <input id="range-eth" class="range" type="range" min="0" max="0" step="32" value="0" />
           </div>
           <button id="btn-max" class="btn" type="button">Max Capacity</button>
           <button id="btn-reset" class="btn" type="button">Reset</button>
@@ -259,16 +273,30 @@
         computeCurrentShares(modules);
 
         const inp = document.getElementById('inp-eth');
+        const rng = document.getElementById('range-eth');
         const btnMax = document.getElementById('btn-max');
         const btnReset = document.getElementById('btn-reset');
         const totalCapEth = modules.reduce((s, m) => s + (m.depositable_eth || 0), 0);
+        rng.max = String(totalCapEth);
+        rng.value = inp.value;
 
         const renderNow = () => render(modules, Number(inp.value || 0));
         renderNow();
 
-        inp.addEventListener('input', renderNow);
-        btnMax.addEventListener('click', () => { inp.value = String(totalCapEth); renderNow(); });
-        btnReset.addEventListener('click', () => { inp.value = '0'; renderNow(); });
+        inp.addEventListener('input', () => {
+          const val = Math.max(0, Math.min(Number(inp.value || 0), totalCapEth));
+          const snapped = Math.floor(val / 32) * 32;
+          if (snapped !== val) inp.value = String(snapped);
+          rng.value = String(snapped);
+          renderNow();
+        });
+        rng.addEventListener('input', () => {
+          const val = Number(rng.value || 0);
+          inp.value = String(val);
+          renderNow();
+        });
+        btnMax.addEventListener('click', () => { inp.value = String(totalCapEth); rng.value = String(totalCapEth); renderNow(); });
+        btnReset.addEventListener('click', () => { inp.value = '0'; rng.value = '0'; renderNow(); });
       }
 
       init().catch(err => {
@@ -279,4 +307,3 @@
     </script>
   </body>
   </html>
-
