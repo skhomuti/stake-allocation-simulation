@@ -31,22 +31,35 @@ async def index(request: Request):
 async def api_modules(service: RouterService = Depends(deps.get_router_service)) -> List[dict]:
     modules = service.list_modules()
 
-    # Compute current allocation state based on active validators
+    # Compute totals based on active and depositable validators
     total_active = sum((m.active_validators or 0) for m in modules)
+    total_depositable = sum((getattr(m, "depositable_validators", 0) or 0) for m in modules)
+    denom_potential = total_active + total_depositable
 
     enriched: List[Dict[str, Any]] = []
     for m in modules:
         d = asdict(m)
         active = m.active_validators or 0
         allocated_eth = active * 32
-        depositable = getattr(m, 'depositable_validators', None) or 0
+        depositable = getattr(m, "depositable_validators", None) or 0
         depositable_eth = depositable * 32
         current_share_pct = (active / total_active * 100.0) if total_active > 0 else None
+
+        # Potential share if all current depositable validators are deposited.
+        raw_potential = ((active + depositable) / denom_potential * 100.0) if denom_potential > 0 else None
+        # Cap potential by per-module limit if available
+        limit_pct = (m.target_share_bps / 100.0) if m.target_share_bps is not None else None
+        if raw_potential is not None and limit_pct is not None:
+            potential_share_pct = min(raw_potential, limit_pct)
+        else:
+            potential_share_pct = raw_potential
+
         d.update({
             "allocated_eth": allocated_eth,
             "depositable_eth": depositable_eth,
             "depositable_validators": depositable,
             "current_share_pct": current_share_pct,
+            "potential_share_pct": potential_share_pct,
         })
         enriched.append(d)
     return enriched

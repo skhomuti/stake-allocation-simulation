@@ -73,17 +73,10 @@
           legend.className = 'muted';
           legend.textContent = 'Current vs allowed share (blue vs gray), overflow (red), potential growth with deposits (green)';
           shareWrap.appendChild(legend);
-          // Totals for potential share calculation
-          const totalActive = data.reduce((s, m) => s + (m.active_validators || 0), 0);
-          const totalDepositable = data.reduce((s, m) => s + (m.depositable_validators || 0), 0);
-
           for (const m of data) {
             const current = typeof m.current_share_pct === 'number' ? m.current_share_pct : 0;
             const limit = typeof m.target_share_bps === 'number' ? (m.target_share_bps / 100) : 0;
-            const active = typeof m.active_validators === 'number' ? m.active_validators : 0;
-            const dep = typeof m.depositable_validators === 'number' ? m.depositable_validators : 0;
-            const denom = totalActive + totalDepositable;
-            const potential = denom > 0 ? ((active + dep) / denom) * 100 : current;
+            const potential = typeof m.potential_share_pct === 'number' ? m.potential_share_pct : current;
             const growth = Math.max(0, potential - current);
             const totalScale = Math.max(current, potential, limit);
             const row = document.createElement('div');
