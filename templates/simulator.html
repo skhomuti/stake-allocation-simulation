@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0b0c10;
+        --card: #111318;
+        --muted: #7a8599;
+        --fg: #e6edf3;
+        --blue: #3b82f6;
+        --green: #22c55e;
+        --red: #ef4444;
+        --gray: #2a2f3a;
+        --grid: #1b1f27;
+        --accent: #7dd3fc;
+      }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%);
+        color: var(--fg);
+        font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+      }
+      .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+      header .title { font-size: 20px; font-weight: 600; letter-spacing: 0.2px; }
+      header .nav a { color: var(--muted); text-decoration: none; padding: 6px 10px; border: 1px solid #263042; border-radius: 8px; }
+      header .nav a:hover { border-color: #3b82f6; color: #c9e5ff; }
+
+      .panel {
+        background: radial-gradient(1200px 1200px at 0% -20%, rgba(59,130,246,0.15), transparent 50%),
+                    radial-gradient(900px 900px at 100% -10%, rgba(34,197,94,0.12), transparent 45%),
+                    var(--card);
+        border: 1px solid #1b2636;
+        border-radius: 14px;
+        padding: 18px 16px;
+      }
+      .controls { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: end; }
+      .control { display: grid; gap: 6px; }
+      .label { color: var(--muted); font-size: 12px; }
+      .number {
+        appearance: textfield;
+        background: #0d121b;
+        color: var(--fg);
+        border: 1px solid #202a39;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+        width: 200px;
+      }
+      .btn {
+        background: transparent;
+        color: var(--fg);
+        border: 1px solid #2a3a52;
+        border-radius: 10px;
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      .btn:hover { border-color: var(--blue); }
+      .muted { color: var(--muted); }
+      .hint { font-size: 12px; margin-left: 8px; }
+
+      .summary { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 12px; }
+      .summary strong { color: #cfe8ff; font-weight: 600; }
+
+      .grid { margin-top: 16px; border: 1px solid #1b2636; border-radius: 14px; overflow: hidden; }
+      .row { display: grid; grid-template-columns: 240px 1fr 260px; gap: 12px; padding: 12px 14px; align-items: center; }
+      .row + .row { border-top: 1px solid #1b2636; }
+      .name { font-weight: 600; }
+      .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+      .bar { position: relative; height: 14px; border-radius: 8px; background: #0c121a; outline: 1px solid #1b2636; }
+      .seg { position: absolute; top: 0; bottom: 0; border-radius: 8px; }
+      .seg.limit { background: #233044; }
+      .seg.current { background: var(--blue); }
+      .seg.overflow { background: var(--red); }
+      .seg.sim { background: var(--green); opacity: 0.7; }
+      .right { text-align: right; }
+      .badge { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid #2a3a52; color: #cfe8ff; background: #111826; }
+      .badge + .badge { margin-left: 6px; }
+
+      @media (max-width: 840px) {
+        .row { grid-template-columns: 1fr; gap: 10px; }
+        .right { text-align: left; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <div class="title">Stake Allocation Simulator</div>
+        <nav class="nav">
+          <a href="/">Home</a>
+          <a href="/docs">API Docs</a>
+        </nav>
+      </header>
+
+      <section class="panel">
+        <div class="controls">
+          <div class="control">
+            <label class="label" for="inp-eth">Simulate deposits (ETH)</label>
+            <input id="inp-eth" class="number" type="number" min="0" step="32" value="0" />
+          </div>
+          <button id="btn-max" class="btn" type="button">Max Capacity</button>
+          <button id="btn-reset" class="btn" type="button">Reset</button>
+        </div>
+        <div class="summary" id="summary"></div>
+      </section>
+
+      <section id="grid" class="grid" aria-live="polite"></section>
+    </div>
+
+    <script>
+      const fmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+      const fmt0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+      async function fetchModules() {
+        const res = await fetch('/api/modules');
+        if (!res.ok) throw new Error('Failed to load modules');
+        return await res.json();
+      }
+
+      function computeCurrentShares(mods) {
+        const totalActive = mods.reduce((s, m) => s + (m.active_validators || 0), 0);
+        for (const m of mods) {
+          const A = m.active_validators || 0;
+          m._current_share = totalActive > 0 ? (A / totalActive) * 100 : 0;
+        }
+      }
+
+      function simulateLowestShareFirst(mods, eth) {
+        const Vwanted = Math.max(0, Math.floor((Number(eth)||0)/32));
+        const totalDepositableV = mods.reduce((s, m) => s + (m.depositable_validators || 0), 0);
+        const V = Math.min(Vwanted, totalDepositableV);
+        const T0 = mods.reduce((s, m) => s + (m.active_validators || 0), 0);
+        const Tfinal = T0 + V;
+        const items = mods.map(m => {
+          const A = m.active_validators || 0;
+          const D = m.depositable_validators || 0;
+          const limitFrac = typeof m.target_share_bps === 'number' ? (m.target_share_bps/10000) : null;
+          const eligible = !(m.is_deposits_paused === true || m.is_stopped === true || m.is_active === false);
+          let maxAfter = A + (eligible ? D : 0);
+          if (eligible && limitFrac !== null) {
+            maxAfter = Math.min(maxAfter, Math.floor(limitFrac * Tfinal));
+          }
+          return { m, A, after: A, maxAfter, limitFrac, eligible };
+        });
+
+        let remaining = V;
+        while (remaining > 0) {
+          const candidates = items.filter(it => it.eligible && it.after < it.maxAfter);
+          if (!candidates.length) break;
+          let best = null, bestScore = Infinity;
+          for (const it of candidates) {
+            const share = it.after / Tfinal; // current share in fraction
+            const score = (it.limitFrac && it.limitFrac > 0) ? (share / it.limitFrac) : share;
+            if (score < bestScore) { best = it; bestScore = score; }
+          }
+          best.after += 1;
+          remaining -= 1;
+        }
+
+        return items.map(it => ({
+          ...it.m,
+          _sim_add_validators: it.after - it.A,
+          _sim_add_eth: (it.after - it.A) * 32,
+          _sim_share_pct: Tfinal > 0 ? (it.after / Tfinal) * 100 : it.m._current_share,
+        }));
+      }
+
+      function render(mods, eth) {
+        const grid = document.getElementById('grid');
+        const summary = document.getElementById('summary');
+        grid.innerHTML = '';
+
+        // Simulation
+        const sim = simulateLowestShareFirst(mods, eth);
+        const totalCapEth = mods.reduce((s, m) => s + (m.depositable_eth || 0), 0);
+        const simEth = Math.min(Math.max(0, Math.floor((Number(eth)||0)/32)*32), totalCapEth);
+        const Tactive = mods.reduce((s, m) => s + (m.active_validators || 0), 0);
+        const Tfinal = Tactive + Math.floor(simEth/32);
+
+        summary.innerHTML = `
+          <div>Capacity: <strong>${fmt0.format(totalCapEth)}</strong> ETH</div>
+          <div>Simulating: <strong>${fmt0.format(simEth)}</strong> ETH (${fmt0.format(simEth/32)} validators)</div>
+          <div>Total validators: <strong>${fmt0.format(Tfinal)}</strong></div>
+        `;
+
+        // Bars
+        for (const m of sim) {
+          const row = document.createElement('div');
+          row.className = 'row';
+
+          const left = document.createElement('div');
+          const name = document.createElement('div'); name.className = 'name'; name.textContent = m.name || m.address;
+          const bps = typeof m.target_share_bps === 'number' ? (m.target_share_bps/100).toFixed(2) + '%' : '—';
+          const meta = document.createElement('div'); meta.className = 'meta';
+          const cur = typeof m._current_share === 'number' ? m._current_share : (m.current_share_pct || 0);
+          meta.textContent = `Current ${fmt.format(cur)}% · Limit ${bps}`;
+          left.appendChild(name); left.appendChild(meta);
+
+          const mid = document.createElement('div');
+          const bar = document.createElement('div'); bar.className = 'bar';
+          const limitPct = typeof m.target_share_bps === 'number' ? (m.target_share_bps/100) : 0;
+          const current = cur;
+          const potential = typeof m._sim_share_pct === 'number' ? m._sim_share_pct : current;
+          const scale = Math.max(current, potential, limitPct);
+
+          const segLimit = document.createElement('div'); segLimit.className = 'seg limit';
+          segLimit.style.left = '0%';
+          segLimit.style.width = (scale>0 ? (limitPct/scale)*100 : 0).toFixed(2)+'%';
+
+          const segCurrent = document.createElement('div'); segCurrent.className = 'seg current';
+          segCurrent.style.left = '0%';
+          segCurrent.style.width = (scale>0 ? (Math.min(current, limitPct)/scale)*100 : 0).toFixed(2)+'%';
+
+          const overflow = Math.max(0, current - limitPct);
+          const segOver = document.createElement('div'); segOver.className = 'seg overflow';
+          segOver.style.left = (scale>0 ? (limitPct/scale)*100 : 0).toFixed(2)+'%';
+          segOver.style.width = (scale>0 ? (overflow/scale)*100 : 0).toFixed(2)+'%';
+
+          const growth = Math.max(0, potential - current);
+          const segSim = document.createElement('div'); segSim.className = 'seg sim';
+          segSim.style.left = (scale>0 ? (Math.min(current, limitPct)/scale)*100 : 0).toFixed(2)+'%';
+          segSim.style.width = (scale>0 ? (Math.min(growth, Math.max(0, limitPct-current))/scale)*100 : 0).toFixed(2)+'%';
+
+          bar.appendChild(segLimit);
+          bar.appendChild(segCurrent);
+          if (overflow > 0) bar.appendChild(segOver);
+          if (growth > 0) bar.appendChild(segSim);
+          mid.appendChild(bar);
+
+          const right = document.createElement('div'); right.className = 'right';
+          const vAdd = m._sim_add_validators || 0;
+          if (vAdd > 0) {
+            const b = document.createElement('span'); b.className = 'badge'; b.textContent = `+ ${fmt0.format(vAdd*32)} ETH in sim`;
+            right.appendChild(b);
+          }
+          const capEth = m.depositable_eth || 0;
+          if (capEth > 0) {
+            const b2 = document.createElement('span'); b2.className = 'badge'; b2.textContent = `Capacity ${fmt0.format(capEth)} ETH`;
+            right.appendChild(b2);
+          }
+
+          row.appendChild(left); row.appendChild(mid); row.appendChild(right);
+          grid.appendChild(row);
+        }
+      }
+
+      async function init() {
+        const modules = await fetchModules();
+        if (!Array.isArray(modules) || modules.length === 0) {
+          document.getElementById('grid').innerHTML = '<div class="row">No modules found. Configure RPC/ABIs.</div>';
+          return;
+        }
+        computeCurrentShares(modules);
+
+        const inp = document.getElementById('inp-eth');
+        const btnMax = document.getElementById('btn-max');
+        const btnReset = document.getElementById('btn-reset');
+        const totalCapEth = modules.reduce((s, m) => s + (m.depositable_eth || 0), 0);
+
+        const renderNow = () => render(modules, Number(inp.value || 0));
+        renderNow();
+
+        inp.addEventListener('input', renderNow);
+        btnMax.addEventListener('click', () => { inp.value = String(totalCapEth); renderNow(); });
+        btnReset.addEventListener('click', () => { inp.value = '0'; renderNow(); });
+      }
+
+      init().catch(err => {
+        console.error(err);
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '<div class="row">Failed to load data. Check console.</div>';
+      });
+    </script>
+  </body>
+  </html>
+
