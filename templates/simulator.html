@@ -39,7 +39,7 @@
         border-radius: 14px;
         padding: 18px 16px;
       }
-      .controls { display: grid; grid-template-columns: 1fr 1fr 200px auto auto; gap: 12px; align-items: end; }
+      .controls { display: grid; grid-template-columns: 1fr 1fr 200px 160px auto auto; gap: 12px; align-items: end; }
       .control { display: grid; gap: 6px; }
       .label { color: var(--muted); font-size: 12px; }
       .number {
@@ -136,6 +136,13 @@
               <option value="100" selected>100%</option>
             </select>
           </div>
+          <div class="control">
+            <label class="label" for="sel-units">Units</label>
+            <select id="sel-units" class="number" style="width: 100%;">
+              <option value="eth" selected>ETH</option>
+              <option value="validators">Validators</option>
+            </select>
+          </div>
           <button id="btn-max" class="btn" type="button">Max Capacity</button>
           <button id="btn-reset" class="btn" type="button">Reset</button>
         </div>
@@ -146,8 +153,8 @@
           <span><span class="swatch red"></span>Overflow</span>
           <span><span class="swatch gray"></span>Limit area</span>
           <span><span class="swatch line"></span>Limit marker</span>
-          <span><span class="badge">Capacity</span> depositable ETH per module</span>
-          <span><span class="badge">Headroom</span> remaining to cap after sim</span>
+          <span><span class="badge">Capacity</span> depositable <span id="legend-units">ETH</span> per module</span>
+          <span><span class="badge">Headroom</span> remaining to cap after sim (<span id="legend-units-2">ETH</span>)</span>
         </div>
       </section>
 
@@ -210,6 +217,7 @@
           _sim_add_eth: (it.after - it.A) * 32,
           _sim_share_pct: Tfinal > 0 ? (it.after / Tfinal) * 100 : it.m._current_share,
           _sim_headroom_eth: Math.max(0, it.maxAfter - it.after) * 32,
+          _sim_headroom_validators: Math.max(0, it.maxAfter - it.after),
         }));
       }
 
@@ -218,6 +226,13 @@
       function render(mods, eth, scalePct) {
         const grid = document.getElementById('grid');
         const summary = document.getElementById('summary');
+        const unitsSel = document.getElementById('sel-units');
+        const units = unitsSel ? unitsSel.value : 'eth';
+        const uLabel = units === 'validators' ? 'validators' : 'ETH';
+        const legendUnits = document.getElementById('legend-units');
+        const legendUnits2 = document.getElementById('legend-units-2');
+        if (legendUnits) legendUnits.textContent = uLabel;
+        if (legendUnits2) legendUnits2.textContent = uLabel;
         grid.innerHTML = '';
 
         // Simulation
@@ -285,17 +300,23 @@
           const right = document.createElement('div'); right.className = 'right';
           const vAdd = m._sim_add_validators || 0;
           if (vAdd > 0) {
-            const b = document.createElement('span'); b.className = 'badge'; b.textContent = `+ ${fmt0.format(vAdd*32)} ETH in sim`;
+            const b = document.createElement('span'); b.className = 'badge';
+            if (units === 'validators') { b.textContent = `+ ${fmt0.format(vAdd)} validators in sim`; }
+            else { b.textContent = `+ ${fmt0.format(vAdd*32)} ETH in sim`; }
             right.appendChild(b);
           }
           const capEth = m.depositable_eth || 0;
-          if (capEth > 0) {
-            const b2 = document.createElement('span'); b2.className = 'badge'; b2.textContent = `Capacity ${fmt0.format(capEth)} ETH`;
+          const capVal = (m.depositable_validators || 0);
+          if ((units === 'validators' ? capVal : capEth) > 0) {
+            const b2 = document.createElement('span'); b2.className = 'badge';
+            b2.textContent = `Capacity ${fmt0.format(units === 'validators' ? capVal : capEth)} ${uLabel}`;
             right.appendChild(b2);
           }
-          const headroom = m._sim_headroom_eth || 0;
-          if (headroom > 0) {
-            const b3 = document.createElement('span'); b3.className = 'badge'; b3.textContent = `Headroom ${fmt0.format(headroom)} ETH`;
+          const headroomEth = m._sim_headroom_eth || 0;
+          const headroomVal = m._sim_headroom_validators || 0;
+          if ((units === 'validators' ? headroomVal : headroomEth) > 0) {
+            const b3 = document.createElement('span'); b3.className = 'badge';
+            b3.textContent = `Headroom ${fmt0.format(units === 'validators' ? headroomVal : headroomEth)} ${uLabel}`;
             right.appendChild(b3);
           } else {
             const b4 = document.createElement('span'); b4.className = 'badge'; b4.textContent = 'At cap';
@@ -323,6 +344,7 @@
         const inp = document.getElementById('inp-eth');
         const rng = document.getElementById('range-eth');
         const selScale = document.getElementById('sel-scale');
+        const selUnits = document.getElementById('sel-units');
         const btnMax = document.getElementById('btn-max');
         const btnReset = document.getElementById('btn-reset');
         const totalCapEth = modules.reduce((s, m) => s + (m.depositable_eth || 0), 0);
@@ -345,6 +367,7 @@
           renderNow();
         });
         selScale.addEventListener('change', renderNow);
+        selUnits.addEventListener('change', renderNow);
         btnMax.addEventListener('click', () => { inp.value = String(totalCapEth); rng.value = String(totalCapEth); renderNow(); });
         btnReset.addEventListener('click', () => { inp.value = '0'; rng.value = '0'; renderNow(); });
       }
