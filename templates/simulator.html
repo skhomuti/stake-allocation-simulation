@@ -167,11 +167,11 @@
         while (remaining > 0) {
           const candidates = items.filter(it => it.eligible && it.after < it.maxAfter);
           if (!candidates.length) break;
-          let best = null, bestScore = Infinity;
+          // Choose by lowest absolute share only (router-like behavior), limits only cap maxAfter
+          let best = null, bestShare = Infinity;
           for (const it of candidates) {
-            const share = it.after / Tfinal; // current share in fraction
-            const score = (it.limitFrac && it.limitFrac > 0) ? (share / it.limitFrac) : share;
-            if (score < bestScore) { best = it; bestScore = score; }
+            const share = it.after / Tfinal; // absolute share fraction
+            if (share < bestShare) { bestShare = share; best = it; }
           }
           best.after += 1;
           remaining -= 1;
@@ -219,28 +219,28 @@
 
           const mid = document.createElement('div');
           const bar = document.createElement('div'); bar.className = 'bar';
-          const limitPct = typeof m.target_share_bps === 'number' ? (m.target_share_bps/100) : 0;
-          const current = cur;
-          const potential = typeof m._sim_share_pct === 'number' ? m._sim_share_pct : current;
-          const scale = Math.max(current, potential, limitPct);
+          const limitPct = typeof m.target_share_bps === 'number' ? (m.target_share_bps/100) : 0; // percent units
+          const current = cur; // percent
+          const potential = typeof m._sim_share_pct === 'number' ? m._sim_share_pct : current; // percent
+          const scale = 100; // absolute scale for comparability
 
           const segLimit = document.createElement('div'); segLimit.className = 'seg limit';
           segLimit.style.left = '0%';
-          segLimit.style.width = (scale>0 ? (limitPct/scale)*100 : 0).toFixed(2)+'%';
+          segLimit.style.width = Math.max(0, Math.min(100, limitPct)).toFixed(2)+'%';
 
           const segCurrent = document.createElement('div'); segCurrent.className = 'seg current';
           segCurrent.style.left = '0%';
-          segCurrent.style.width = (scale>0 ? (Math.min(current, limitPct)/scale)*100 : 0).toFixed(2)+'%';
+          segCurrent.style.width = Math.max(0, Math.min(limitPct, current)).toFixed(2)+'%';
 
           const overflow = Math.max(0, current - limitPct);
           const segOver = document.createElement('div'); segOver.className = 'seg overflow';
-          segOver.style.left = (scale>0 ? (limitPct/scale)*100 : 0).toFixed(2)+'%';
-          segOver.style.width = (scale>0 ? (overflow/scale)*100 : 0).toFixed(2)+'%';
+          segOver.style.left = Math.max(0, Math.min(100, limitPct)).toFixed(2)+'%';
+          segOver.style.width = Math.max(0, Math.min(100, overflow)).toFixed(2)+'%';
 
           const growth = Math.max(0, potential - current);
           const segSim = document.createElement('div'); segSim.className = 'seg sim';
-          segSim.style.left = (scale>0 ? (Math.min(current, limitPct)/scale)*100 : 0).toFixed(2)+'%';
-          segSim.style.width = (scale>0 ? (Math.min(growth, Math.max(0, limitPct-current))/scale)*100 : 0).toFixed(2)+'%';
+          segSim.style.left = Math.max(0, Math.min(100, Math.min(current, limitPct))).toFixed(2)+'%';
+          segSim.style.width = Math.max(0, Math.min(100, Math.min(growth, Math.max(0, limitPct - current)))).toFixed(2)+'%';
 
           bar.appendChild(segLimit);
           bar.appendChild(segCurrent);
