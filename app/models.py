@@ -18,6 +18,8 @@ class Module:
     is_stopped: Optional[bool] = None
     # Operational metrics
     active_validators: Optional[int] = None
+    # Validators that can be deposited right now (capacity)
+    depositable_validators: Optional[int] = None
     last_deposit_block: Optional[int] = None
     max_deposits_per_block: Optional[int] = None
     min_deposit_block_distance: Optional[int] = None

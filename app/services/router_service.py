@@ -36,6 +36,7 @@ class RouterService:
                 is_deposits_paused=item.get("is_deposits_paused"),
                 is_stopped=item.get("is_stopped"),
                 active_validators=item.get("active_validators"),
+                depositable_validators=item.get("depositable_validators"),
                 last_deposit_block=item.get("last_deposit_block"),
                 max_deposits_per_block=item.get("max_deposits_per_block"),
                 min_deposit_block_distance=item.get("min_deposit_block_distance"),

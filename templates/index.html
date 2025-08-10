@@ -71,12 +71,21 @@
           shareWrap.innerHTML = '';
           const legend = document.createElement('div');
           legend.className = 'muted';
-          legend.textContent = 'Current vs allowed module share (overflow shown in red)';
+          legend.textContent = 'Current vs allowed share (blue vs gray), overflow (red), potential growth with deposits (green)';
           shareWrap.appendChild(legend);
+          // Totals for potential share calculation
+          const totalActive = data.reduce((s, m) => s + (m.active_validators || 0), 0);
+          const totalDepositable = data.reduce((s, m) => s + (m.depositable_validators || 0), 0);
+
           for (const m of data) {
             const current = typeof m.current_share_pct === 'number' ? m.current_share_pct : 0;
             const limit = typeof m.target_share_bps === 'number' ? (m.target_share_bps / 100) : 0;
-            const totalScale = Math.max(current, limit);
+            const active = typeof m.active_validators === 'number' ? m.active_validators : 0;
+            const dep = typeof m.depositable_validators === 'number' ? m.depositable_validators : 0;
+            const denom = totalActive + totalDepositable;
+            const potential = denom > 0 ? ((active + dep) / denom) * 100 : current;
+            const growth = Math.max(0, potential - current);
+            const totalScale = Math.max(current, potential, limit);
             const row = document.createElement('div');
             row.style.display = 'flex';
             row.style.gap = '12px';
@@ -140,8 +149,41 @@
               barBox.appendChild(overflowDiv);
             }
 
+            // Potential growth segment (green), starts where current ends
+            if (growth > 0) {
+              const potDiv = document.createElement('div');
+              potDiv.style.position = 'absolute';
+              potDiv.style.top = '0';
+              potDiv.style.bottom = '0';
+              const leftRel = totalScale > 0 ? (Math.max(0, Math.min(totalScale, current)) / totalScale) * 100 : 0;
+              potDiv.style.left = Math.max(0, Math.min(100, leftRel)).toFixed(2) + '%';
+              const potRel = totalScale > 0 ? (growth / totalScale) * 100 : 0;
+              potDiv.style.width = Math.max(0, Math.min(100, potRel)).toFixed(2) + '%';
+              potDiv.style.background = '#22c55e';
+              potDiv.style.opacity = '0.7';
+              barBox.appendChild(potDiv);
+            }
+
+            // Right label with depositable ETH, if any
+            const right = document.createElement('div');
+            right.style.minWidth = '140px';
+            right.style.textAlign = 'right';
+            const depEth = typeof m.depositable_eth === 'number' ? m.depositable_eth : 0;
+            if (depEth > 0) {
+              const badge = document.createElement('span');
+              badge.textContent = `+ ${depEth} ETH depositable`;
+              badge.style.background = '#e0f2fe';
+              badge.style.color = '#0369a1';
+              badge.style.border = '1px solid #7dd3fc';
+              badge.style.borderRadius = '999px';
+              badge.style.padding = '2px 8px';
+              badge.style.fontSize = '12px';
+              right.appendChild(badge);
+            }
+
             row.appendChild(left);
             row.appendChild(barBox);
+            row.appendChild(right);
             shareWrap.appendChild(row);
           }
 

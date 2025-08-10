@@ -89,6 +89,7 @@ class EthAdapter:
                     is_deposits_paused: Optional[bool] = None
                     is_stopped: Optional[bool] = None
                     active_validators: Optional[int] = None
+                    depositable_validators: Optional[int] = None
                     if mid_int is not None:
                         try:
                             is_active = bool(router.functions.getStakingModuleIsActive(mid_int).call())
@@ -114,6 +115,15 @@ class EthAdapter:
                             logger.debug(
                                 "getStakingModuleActiveValidatorsCount(%s) failed", mid_int, exc_info=True
                             )
+                        try:
+                            summary = router.functions.getStakingModuleSummary(mid_int).call()
+                            if isinstance(summary, (list, tuple)) and len(summary) >= 3:
+                                depositable_validators = int(summary[2])
+                            elif isinstance(summary, dict):
+                                dv = summary.get("depositableValidatorsCount")
+                                depositable_validators = int(dv) if dv is not None else None
+                        except Exception:
+                            logger.debug("getStakingModuleSummary(%s) failed", mid_int, exc_info=True)
 
                     modules.append(
                         {
@@ -128,6 +138,7 @@ class EthAdapter:
                             "is_deposits_paused": is_deposits_paused,
                             "is_stopped": is_stopped,
                             "active_validators": active_validators,
+                            "depositable_validators": depositable_validators,
                         }
                     )
             if modules:
