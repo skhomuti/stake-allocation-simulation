@@ -29,6 +29,12 @@
       <a class="button" href="/docs">Open API Docs</a>
       <hr />
       <h2>Router Modules</h2>
+      <div style="margin: 0.5rem 0 1rem 0; display:flex; gap:12px; align-items:center; flex-wrap: wrap;">
+        <label for="sim-eth" class="muted">Simulate deposits:</label>
+        <input id="sim-eth" type="number" min="0" step="32" value="0" style="width: 140px; padding: 4px 6px;" />
+        <button id="sim-max" type="button" style="padding: 4px 8px; border: 1px solid #999; border-radius: 6px; background: transparent; cursor: pointer;">Max</button>
+        <span id="sim-hint" class="muted" style="font-size: 12px;"></span>
+      </div>
       <div id="share-bars" class="shares" style="margin-bottom: 1rem;"></div>
       <div id="modules" class="modules">Loading…</div>
     </div>
@@ -66,119 +72,9 @@
           table.appendChild(head);
 
           const body = document.createElement('tbody');
-          // Render important share bars separately
-          const shareWrap = document.getElementById('share-bars');
-          shareWrap.innerHTML = '';
-          const legend = document.createElement('div');
-          legend.className = 'muted';
-          legend.textContent = 'Current vs allowed share (blue vs gray), overflow (red), potential growth with deposits (green)';
-          shareWrap.appendChild(legend);
-          for (const m of data) {
-            const current = typeof m.current_share_pct === 'number' ? m.current_share_pct : 0;
-            const limit = typeof m.target_share_bps === 'number' ? (m.target_share_bps / 100) : 0;
-            const potential = typeof m.potential_share_pct === 'number' ? m.potential_share_pct : current;
-            const growth = Math.max(0, potential - current);
-            const totalScale = Math.max(current, potential, limit);
-            const row = document.createElement('div');
-            row.style.display = 'flex';
-            row.style.gap = '12px';
-            row.style.alignItems = 'center';
-            row.style.margin = '8px 0';
-
-            const left = document.createElement('div');
-            left.style.minWidth = '220px';
-            left.style.flex = '0 0 auto';
-            const name = document.createElement('div');
-            name.textContent = m.name || (m.address ? `${m.address.slice(0,6)}…${m.address.slice(-4)}` : '');
-            const meta = document.createElement('div');
-            meta.className = 'muted';
-            const flag = current > limit ? ' (exceeds limit)' : '';
-            meta.textContent = `${current.toFixed(2)}% of ${limit.toFixed(2)}%${flag}`;
-            left.appendChild(name);
-            left.appendChild(meta);
-
-            const barBox = document.createElement('div');
-            barBox.style.position = 'relative';
-            barBox.style.flex = '1 1 auto';
-            barBox.style.height = '12px';
-            barBox.style.border = '1px solid #ddd';
-            barBox.style.borderRadius = '6px';
-            barBox.style.background = '#f8f8f8';
-            // Limit the maximum length of the bar by module share scale (or overflowed current)
-            barBox.style.width = totalScale.toFixed(2) + '%';
-
-            const limitDiv = document.createElement('div');
-            limitDiv.style.position = 'absolute';
-            limitDiv.style.left = '0';
-            limitDiv.style.top = '0';
-            limitDiv.style.bottom = '0';
-            const limitRel = totalScale > 0 ? (limit / totalScale) * 100 : 0;
-            limitDiv.style.width = Math.max(0, Math.min(100, limitRel)).toFixed(2) + '%';
-            limitDiv.style.background = '#e5e7eb';
-
-            const currentDiv = document.createElement('div');
-            const cappedCurrent = Math.min(current, limit);
-            currentDiv.style.position = 'absolute';
-            currentDiv.style.left = '0';
-            currentDiv.style.top = '0';
-            currentDiv.style.bottom = '0';
-            const currentRel = totalScale > 0 ? (cappedCurrent / totalScale) * 100 : 0;
-            currentDiv.style.width = Math.max(0, Math.min(100, currentRel)).toFixed(2) + '%';
-            currentDiv.style.background = '#3b82f6';
-
-            barBox.appendChild(limitDiv);
-            barBox.appendChild(currentDiv);
-
-            if (current > limit) {
-              const overflowDiv = document.createElement('div');
-              overflowDiv.style.position = 'absolute';
-              overflowDiv.style.top = '0';
-              overflowDiv.style.bottom = '0';
-              const leftRel = totalScale > 0 ? (limit / totalScale) * 100 : 0;
-              overflowDiv.style.left = Math.min(100, leftRel).toFixed(2) + '%';
-              const overflowRel = totalScale > 0 ? ((current - limit) / totalScale) * 100 : 0;
-              overflowDiv.style.width = Math.max(0, Math.min(100, overflowRel)).toFixed(2) + '%';
-              overflowDiv.style.background = '#ef4444';
-              barBox.appendChild(overflowDiv);
-            }
-
-            // Potential growth segment (green), starts where current ends
-            if (growth > 0) {
-              const potDiv = document.createElement('div');
-              potDiv.style.position = 'absolute';
-              potDiv.style.top = '0';
-              potDiv.style.bottom = '0';
-              const leftRel = totalScale > 0 ? (Math.max(0, Math.min(totalScale, current)) / totalScale) * 100 : 0;
-              potDiv.style.left = Math.max(0, Math.min(100, leftRel)).toFixed(2) + '%';
-              const potRel = totalScale > 0 ? (growth / totalScale) * 100 : 0;
-              potDiv.style.width = Math.max(0, Math.min(100, potRel)).toFixed(2) + '%';
-              potDiv.style.background = '#22c55e';
-              potDiv.style.opacity = '0.7';
-              barBox.appendChild(potDiv);
-            }
-
-            // Right label with depositable ETH, if any
-            const right = document.createElement('div');
-            right.style.minWidth = '140px';
-            right.style.textAlign = 'right';
-            const depEth = typeof m.depositable_eth === 'number' ? m.depositable_eth : 0;
-            if (depEth > 0) {
-              const badge = document.createElement('span');
-              badge.textContent = `+ ${depEth} ETH depositable`;
-              badge.style.background = '#e0f2fe';
-              badge.style.color = '#0369a1';
-              badge.style.border = '1px solid #7dd3fc';
-              badge.style.borderRadius = '999px';
-              badge.style.padding = '2px 8px';
-              badge.style.fontSize = '12px';
-              right.appendChild(badge);
-            }
-
-            row.appendChild(left);
-            row.appendChild(barBox);
-            row.appendChild(right);
-            shareWrap.appendChild(row);
-          }
+          // Store globally for simulation rendering
+          window.__modulesData = data;
+          renderShares(0);
 
           // Raw values table
           for (const m of data) {
@@ -211,11 +107,221 @@
           }
           table.appendChild(body);
           el.replaceChildren(table);
+          // Hook up simulation controls
+          const inp = document.getElementById('sim-eth');
+          const btn = document.getElementById('sim-max');
+          const hint = document.getElementById('sim-hint');
+          const totalDepositableEth = data.reduce((s, m) => s + (m.depositable_eth || 0), 0);
+          hint.textContent = `(capacity: up to ${totalDepositableEth} ETH)`;
+          inp.addEventListener('input', () => {
+            const val = Number(inp.value || 0);
+            renderShares(isFinite(val) ? Math.max(0, val) : 0);
+          });
+          btn.addEventListener('click', () => {
+            inp.value = String(totalDepositableEth);
+            renderShares(totalDepositableEth);
+          });
         } catch (err) {
           el.textContent = 'Error loading modules. Check console and config.';
           console.error(err);
         }
       }
+      function renderShares(simEth) {
+        const data = window.__modulesData || [];
+        const shareWrap = document.getElementById('share-bars');
+        shareWrap.innerHTML = '';
+        const legend = document.createElement('div');
+        legend.className = 'muted';
+        legend.textContent = 'Current vs allowed share (blue vs gray), overflow (red), simulated growth (green)';
+        shareWrap.appendChild(legend);
+
+        const sim = computeSimulation(data, simEth);
+        for (const m of sim) {
+          const current = typeof m.current_share_pct === 'number' ? m.current_share_pct : 0;
+          const limit = typeof m.target_share_bps === 'number' ? (m.target_share_bps / 100) : 0;
+          const potential = typeof m._sim_share_pct === 'number' && m._sim_share_pct !== null ? m._sim_share_pct : (typeof m.potential_share_pct === 'number' ? m.potential_share_pct : current);
+          const growth = Math.max(0, potential - current);
+          const totalScale = Math.max(current, potential, limit);
+
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.gap = '12px';
+          row.style.alignItems = 'center';
+          row.style.margin = '8px 0';
+
+          const left = document.createElement('div');
+          left.style.minWidth = '220px';
+          left.style.flex = '0 0 auto';
+          const name = document.createElement('div');
+          name.textContent = m.name || (m.address ? `${m.address.slice(0,6)}…${m.address.slice(-4)}` : '');
+          const meta = document.createElement('div');
+          meta.className = 'muted';
+          const flag = current > limit ? ' (exceeds limit)' : '';
+          meta.textContent = `${current.toFixed(2)}% of ${limit.toFixed(2)}%${flag}`;
+          left.appendChild(name);
+          left.appendChild(meta);
+
+          const barBox = document.createElement('div');
+          barBox.style.position = 'relative';
+          barBox.style.flex = '1 1 auto';
+          barBox.style.height = '12px';
+          barBox.style.border = '1px solid #ddd';
+          barBox.style.borderRadius = '6px';
+          barBox.style.background = '#f8f8f8';
+          barBox.style.width = totalScale.toFixed(2) + '%';
+
+          const limitDiv = document.createElement('div');
+          limitDiv.style.position = 'absolute';
+          limitDiv.style.left = '0';
+          limitDiv.style.top = '0';
+          limitDiv.style.bottom = '0';
+          const limitRel = totalScale > 0 ? (limit / totalScale) * 100 : 0;
+          limitDiv.style.width = Math.max(0, Math.min(100, limitRel)).toFixed(2) + '%';
+          limitDiv.style.background = '#e5e7eb';
+
+          const currentDiv = document.createElement('div');
+          const cappedCurrent = Math.min(current, limit);
+          currentDiv.style.position = 'absolute';
+          currentDiv.style.left = '0';
+          currentDiv.style.top = '0';
+          currentDiv.style.bottom = '0';
+          const currentRel = totalScale > 0 ? (cappedCurrent / totalScale) * 100 : 0;
+          currentDiv.style.width = Math.max(0, Math.min(100, currentRel)).toFixed(2) + '%';
+          currentDiv.style.background = '#3b82f6';
+
+          barBox.appendChild(limitDiv);
+          barBox.appendChild(currentDiv);
+
+          if (current > limit) {
+            const overflowDiv = document.createElement('div');
+            overflowDiv.style.position = 'absolute';
+            overflowDiv.style.top = '0';
+            overflowDiv.style.bottom = '0';
+            const leftRel = totalScale > 0 ? (limit / totalScale) * 100 : 0;
+            overflowDiv.style.left = Math.min(100, leftRel).toFixed(2) + '%';
+            const overflowRel = totalScale > 0 ? ((current - limit) / totalScale) * 100 : 0;
+            overflowDiv.style.width = Math.max(0, Math.min(100, overflowRel)).toFixed(2) + '%';
+            overflowDiv.style.background = '#ef4444';
+            barBox.appendChild(overflowDiv);
+          }
+
+          if (growth > 0) {
+            const potDiv = document.createElement('div');
+            potDiv.style.position = 'absolute';
+            potDiv.style.top = '0';
+            potDiv.style.bottom = '0';
+            const leftRel = totalScale > 0 ? (Math.max(0, Math.min(totalScale, current)) / totalScale) * 100 : 0;
+            potDiv.style.left = Math.max(0, Math.min(100, leftRel)).toFixed(2) + '%';
+            const potRel = totalScale > 0 ? (growth / totalScale) * 100 : 0;
+            potDiv.style.width = Math.max(0, Math.min(100, potRel)).toFixed(2) + '%';
+            potDiv.style.background = '#22c55e';
+            potDiv.style.opacity = '0.7';
+            barBox.appendChild(potDiv);
+          }
+
+          const right = document.createElement('div');
+          right.style.minWidth = '220px';
+          right.style.textAlign = 'right';
+          const depEth = typeof m.depositable_eth === 'number' ? m.depositable_eth : 0;
+          if (depEth > 0) {
+            const badge = document.createElement('span');
+            badge.textContent = `+ ${depEth} ETH depositable`;
+            badge.style.background = '#e0f2fe';
+            badge.style.color = '#0369a1';
+            badge.style.border = '1px solid #7dd3fc';
+            badge.style.borderRadius = '999px';
+            badge.style.padding = '2px 8px';
+            badge.style.fontSize = '12px';
+            right.appendChild(badge);
+          }
+          const addEth = m._sim_add_eth || 0;
+          if (addEth > 0) {
+            const badge2 = document.createElement('span');
+            badge2.textContent = ` + ${addEth} ETH in sim`;
+            badge2.style.marginLeft = '8px';
+            badge2.style.background = '#dcfce7';
+            badge2.style.color = '#166534';
+            badge2.style.border = '1px solid #86efac';
+            badge2.style.borderRadius = '999px';
+            badge2.style.padding = '2px 8px';
+            badge2.style.fontSize = '12px';
+            right.appendChild(badge2);
+          }
+
+          row.appendChild(left);
+          row.appendChild(barBox);
+          row.appendChild(right);
+          shareWrap.appendChild(row);
+        }
+      }
+
+      function computeSimulation(data, simEth) {
+        // Convert ETH to validators
+        let V = Math.max(0, Math.floor((Number(simEth) || 0) / 32));
+        const T0 = data.reduce((s, m) => s + (m.active_validators || 0), 0);
+        if (V === 0 || T0 < 0) {
+          return data.map(m => Object.assign({}, m, {
+            _sim_add_validators: 0,
+            _sim_add_eth: 0,
+            _sim_share_pct: m.current_share_pct,
+          }));
+        }
+
+        const totalDepositableV = data.reduce((s, m) => s + (m.depositable_validators || 0), 0);
+        V = Math.min(V, totalDepositableV);
+        const Tfinal = T0 + V;
+
+        const items = data.map((m, idx) => {
+          const A = m.active_validators || 0;
+          const D = m.depositable_validators || 0;
+          const paused = m.is_deposits_paused === true;
+          const stopped = m.is_stopped === true;
+          const inactive = m.is_active === false;
+          const eligible = !(paused || stopped || inactive);
+          const limitFrac = typeof m.target_share_bps === 'number' ? (m.target_share_bps / 10000) : null;
+          // Absolute cap in validators this module can reach after simulation
+          let maxAfter = A + D; // limited by depositable capacity
+          if (eligible && limitFrac !== null) {
+            maxAfter = Math.min(maxAfter, Math.floor(limitFrac * Tfinal));
+          }
+          if (!eligible) maxAfter = A; // cannot receive any
+          return { m, A, after: A, maxAfter, idx };
+        });
+
+        let remaining = V;
+        // Greedy: assign one validator at a time to the most underweight module
+        // underweight score: ratio of current share to limit (lower is more underweight)
+        while (remaining > 0) {
+          // Pick candidate modules that can still receive
+          const candidates = items.filter(it => it.after < it.maxAfter);
+          if (candidates.length === 0) break;
+
+          let best = null;
+          let bestScore = Infinity;
+          for (const it of candidates) {
+            const limitFrac = typeof it.m.target_share_bps === 'number' ? (it.m.target_share_bps / 10000) : null;
+            const share = it.after / Tfinal; // current share if we allocate next after update, but compare on current
+            // Use normalized ratio to limit when available; otherwise absolute share
+            const score = (limitFrac && limitFrac > 0) ? (share / limitFrac) : share;
+            if (score < bestScore) { bestScore = score; best = it; }
+          }
+          if (!best) break;
+          best.after += 1;
+          remaining -= 1;
+        }
+
+        return items.map(it => {
+          const addV = Math.max(0, it.after - it.A);
+          const addEth = addV * 32;
+          const simShare = Tfinal > 0 ? (it.after / Tfinal) * 100 : null;
+          return Object.assign({}, it.m, {
+            _sim_add_validators: addV,
+            _sim_add_eth: addEth,
+            _sim_share_pct: simShare,
+          });
+        });
+      }
+
       loadModules();
     </script>
   </body>
