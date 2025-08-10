@@ -76,6 +76,13 @@
 
       .summary { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 12px; }
       .summary strong { color: #cfe8ff; font-weight: 600; }
+      .legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 12px; }
+      .swatch { display: inline-block; width: 14px; height: 8px; border-radius: 4px; margin-right: 6px; vertical-align: middle; }
+      .swatch.blue { background: var(--blue); }
+      .swatch.green { background: var(--green); opacity: .7; }
+      .swatch.red { background: var(--red); }
+      .swatch.gray { background: #233044; }
+      .swatch.line { width: 2px; height: 14px; background: #94a3b8; border-radius: 0; margin-right: 8px; }
 
       .grid { margin-top: 16px; border: 1px solid #1b2636; border-radius: 14px; overflow: hidden; }
       .row { display: grid; grid-template-columns: 240px 1fr 260px; gap: 12px; padding: 12px 14px; align-items: center; }
@@ -133,6 +140,15 @@
           <button id="btn-reset" class="btn" type="button">Reset</button>
         </div>
         <div class="summary" id="summary"></div>
+        <div class="legend">
+          <span><span class="swatch blue"></span>Current</span>
+          <span><span class="swatch green"></span>Simulated growth</span>
+          <span><span class="swatch red"></span>Overflow</span>
+          <span><span class="swatch gray"></span>Limit area</span>
+          <span><span class="swatch line"></span>Limit marker</span>
+          <span><span class="badge">Capacity</span> depositable ETH per module</span>
+          <span><span class="badge">Headroom</span> remaining to cap after sim</span>
+        </div>
       </section>
 
       <section id="grid" class="grid" aria-live="polite"></section>
@@ -193,6 +209,7 @@
           _sim_add_validators: it.after - it.A,
           _sim_add_eth: (it.after - it.A) * 32,
           _sim_share_pct: Tfinal > 0 ? (it.after / Tfinal) * 100 : it.m._current_share,
+          _sim_headroom_eth: Math.max(0, it.maxAfter - it.after) * 32,
         }));
       }
 
@@ -275,6 +292,14 @@
           if (capEth > 0) {
             const b2 = document.createElement('span'); b2.className = 'badge'; b2.textContent = `Capacity ${fmt0.format(capEth)} ETH`;
             right.appendChild(b2);
+          }
+          const headroom = m._sim_headroom_eth || 0;
+          if (headroom > 0) {
+            const b3 = document.createElement('span'); b3.className = 'badge'; b3.textContent = `Headroom ${fmt0.format(headroom)} ETH`;
+            right.appendChild(b3);
+          } else {
+            const b4 = document.createElement('span'); b4.className = 'badge'; b4.textContent = 'At cap';
+            right.appendChild(b4);
           }
           // Off-scale indicator
           if (current > scalePct || potential > scalePct || limitPct > scalePct) {
