@@ -32,7 +32,7 @@
       <h2>Router Modules</h2>
       <div style="margin: 0.5rem 0 1rem 0; display:flex; gap:12px; align-items:center; flex-wrap: wrap;">
         <label for="sim-eth" class="muted">Simulate deposits:</label>
-        <input id="sim-eth" type="number" min="0" step="32" value="0" style="width: 140px; padding: 4px 6px;" />
+        <input id="sim-eth" type="number" min="0" step="any" value="0" style="width: 140px; padding: 4px 6px;" />
         <button id="sim-max" type="button" style="padding: 4px 8px; border: 1px solid #999; border-radius: 6px; background: transparent; cursor: pointer;">Max</button>
         <span id="sim-hint" class="muted" style="font-size: 12px;"></span>
       </div>
@@ -40,6 +40,9 @@
       <div id="modules" class="modules">Loading…</div>
     </div>
     <script>
+      // Helper to format numbers with spaces for thousands
+      const _nfInt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+      const nf = (n) => _nfInt.format(n).replace(/,/g, ' ');
       async function loadModules() {
         const el = document.getElementById('modules');
         try {
@@ -113,7 +116,7 @@
           const btn = document.getElementById('sim-max');
           const hint = document.getElementById('sim-hint');
           const totalDepositableEth = data.reduce((s, m) => s + (m.depositable_eth || 0), 0);
-          hint.textContent = `(capacity: up to ${totalDepositableEth} ETH)`;
+          hint.textContent = `(capacity: up to ${nf(totalDepositableEth)} ETH)`;
           inp.addEventListener('input', () => {
             const val = Number(inp.value || 0);
             renderShares(isFinite(val) ? Math.max(0, val) : 0);
@@ -226,7 +229,7 @@
           const depEth = typeof m.depositable_eth === 'number' ? m.depositable_eth : 0;
           if (depEth > 0) {
             const badge = document.createElement('span');
-            badge.textContent = `+ ${depEth} ETH depositable`;
+            badge.textContent = `+ ${nf(depEth)} ETH depositable`;
             badge.style.background = '#e0f2fe';
             badge.style.color = '#0369a1';
             badge.style.border = '1px solid #7dd3fc';
@@ -238,7 +241,7 @@
           const addEth = m._sim_add_eth || 0;
           if (addEth > 0) {
             const badge2 = document.createElement('span');
-            badge2.textContent = ` + ${addEth} ETH in sim`;
+            badge2.textContent = ` + ${nf(addEth)} ETH in sim`;
             badge2.style.marginLeft = '8px';
             badge2.style.background = '#dcfce7';
             badge2.style.color = '#166534';
@@ -283,7 +286,8 @@
           // Absolute cap in validators this module can reach after simulation
           let maxAfter = A + D; // limited by depositable capacity
           if (eligible && limitFrac !== null) {
-            maxAfter = Math.min(maxAfter, Math.floor(limitFrac * Tfinal));
+            // Use ceil so module cap rounds up in validator units
+            maxAfter = Math.min(maxAfter, Math.ceil(limitFrac * Tfinal));
           }
           if (!eligible) maxAfter = A; // cannot receive any
           return { m, A, after: A, maxAfter, idx };

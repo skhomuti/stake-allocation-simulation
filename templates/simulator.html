@@ -162,8 +162,11 @@
     </div>
 
     <script>
-      const fmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
-      const fmt0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+      // Format numbers with spaces as thousand separators, keep '.' as decimal
+      const _rawFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+      const _rawFmt0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+      const fmt = { format: (n) => _rawFmt.format(n).replace(/,/g, ' ') };
+      const fmt0 = { format: (n) => _rawFmt0.format(n).replace(/,/g, ' ') };
 
       async function fetchModules() {
         const res = await fetch('/api/modules');
@@ -192,9 +195,10 @@
           const eligible = !(m.is_deposits_paused === true || m.is_stopped === true || m.is_active === false);
           let maxAfter = A + (eligible ? D : 0);
           if (eligible && limitFrac !== null) {
-            maxAfter = Math.min(maxAfter, Math.floor(limitFrac * Tfinal));
+            // Use ceil so cap rounds up in validator units
+            maxAfter = Math.min(maxAfter, Math.ceil(limitFrac * Tfinal));
           }
-          return { m, A, after: A, maxAfter, limitFrac, eligible };
+          return { m, A, D, after: A, maxAfter, limitFrac, eligible };
         });
 
         let remaining = V;
@@ -211,14 +215,38 @@
           remaining -= 1;
         }
 
-        return items.map(it => ({
-          ...it.m,
-          _sim_add_validators: it.after - it.A,
-          _sim_add_eth: (it.after - it.A) * 32,
-          _sim_share_pct: Tfinal > 0 ? (it.after / Tfinal) * 100 : it.m._current_share,
-          _sim_headroom_eth: Math.max(0, it.maxAfter - it.after) * 32,
-          _sim_headroom_validators: Math.max(0, it.maxAfter - it.after),
-        }));
+        // Dynamic headroom: additional validators this module can still receive,
+        // accounting for cap growth as total validators increase with each extra here.
+        function dynamicHeadroomValidators(it) {
+          const A0 = it.A;
+          const after0 = it.after;
+          const added = after0 - A0;
+          const Drem = Math.max(0, it.D - added);
+          if (Drem <= 0) return 0;
+          if (!(it.limitFrac > 0) || !it.eligible) return Drem;
+          const Tmax = A0 + it.D; // absolute capacity cap in validators
+          let lo = 0, hi = Drem;
+          while (lo < hi) {
+            const mid = Math.ceil((lo + hi + 1) / 2);
+            const capLimit = Math.ceil(it.limitFrac * (Tfinal + mid));
+            const cap = Math.min(Tmax, capLimit);
+            if (after0 + mid <= cap) lo = mid; else hi = mid - 1;
+          }
+          return lo;
+        }
+
+        return items.map(it => {
+          const vAdd = it.after - it.A;
+          const headroomV = dynamicHeadroomValidators(it);
+          return ({
+            ...it.m,
+            _sim_add_validators: vAdd,
+            _sim_add_eth: vAdd * 32,
+            _sim_share_pct: Tfinal > 0 ? (it.after / Tfinal) * 100 : it.m._current_share,
+            _sim_headroom_eth: headroomV * 32,
+            _sim_headroom_validators: headroomV,
+          });
+        });
       }
 
       function pos(pct, scalePct) { return Math.max(0, Math.min(100, (pct / scalePct) * 100)); }
@@ -355,10 +383,11 @@
         renderNow();
 
         inp.addEventListener('input', () => {
+          // Allow any ETH amount in the input; clamp to capacity for rendering
           const val = Math.max(0, Math.min(Number(inp.value || 0), totalCapEth));
-          const snapped = Math.floor(val / 32) * 32;
-          if (snapped !== val) inp.value = String(snapped);
-          rng.value = String(snapped);
+          // Keep the range slider in sync on 32-ETH increments without overwriting typed value
+          const sliderVal = Math.floor(val / 32) * 32;
+          rng.value = String(sliderVal);
           renderNow();
         });
         rng.addEventListener('input', () => {
@@ -368,7 +397,11 @@
         });
         selScale.addEventListener('change', renderNow);
         selUnits.addEventListener('change', renderNow);
-        btnMax.addEventListener('click', () => { inp.value = String(totalCapEth); rng.value = String(totalCapEth); renderNow(); });
+        btnMax.addEventListener('click', () => {
+          inp.value = String(totalCapEth);
+          rng.value = String(Math.floor(totalCapEth / 32) * 32);
+          renderNow();
+        });
         btnReset.addEventListener('click', () => { inp.value = '0'; rng.value = '0'; renderNow(); });
       }
 
