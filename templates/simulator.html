@@ -39,7 +39,7 @@
         border-radius: 14px;
         padding: 18px 16px;
       }
-      .controls { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 12px; align-items: end; }
+      .controls { display: grid; grid-template-columns: 1fr 1fr 200px auto auto; gap: 12px; align-items: end; }
       .control { display: grid; gap: 6px; }
       .label { color: var(--muted); font-size: 12px; }
       .number {
@@ -88,6 +88,7 @@
       .seg.current { background: var(--blue); }
       .seg.overflow { background: var(--red); }
       .seg.sim { background: var(--green); opacity: 0.7; }
+      .limit-line { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #94a3b8; opacity: 0.9; box-shadow: 0 0 0 1px rgba(255,255,255,0.03); }
       .right { text-align: right; }
       .badge { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid #2a3a52; color: #cfe8ff; background: #111826; }
       .badge + .badge { margin-left: 6px; }
@@ -117,6 +118,16 @@
           <div class="control">
             <label class="label" for="range-eth">Quick adjust</label>
             <input id="range-eth" class="range" type="range" min="0" max="0" step="32" value="0" />
+          </div>
+          <div class="control">
+            <label class="label" for="sel-scale">Bar scale (max %)</label>
+            <select id="sel-scale" class="number" style="width: 100%;">
+              <option value="5">5%</option>
+              <option value="10">10%</option>
+              <option value="25">25%</option>
+              <option value="50">50%</option>
+              <option value="100" selected>100%</option>
+            </select>
           </div>
           <button id="btn-max" class="btn" type="button">Max Capacity</button>
           <button id="btn-reset" class="btn" type="button">Reset</button>
@@ -185,7 +196,9 @@
         }));
       }
 
-      function render(mods, eth) {
+      function pos(pct, scalePct) { return Math.max(0, Math.min(100, (pct / scalePct) * 100)); }
+
+      function render(mods, eth, scalePct) {
         const grid = document.getElementById('grid');
         const summary = document.getElementById('summary');
         grid.innerHTML = '';
@@ -201,6 +214,7 @@
           <div>Capacity: <strong>${fmt0.format(totalCapEth)}</strong> ETH</div>
           <div>Simulating: <strong>${fmt0.format(simEth)}</strong> ETH (${fmt0.format(simEth/32)} validators)</div>
           <div>Total validators: <strong>${fmt0.format(Tfinal)}</strong></div>
+          <div>Bar max: <strong>${scalePct}%</strong></div>
         `;
 
         // Bars
@@ -222,30 +236,33 @@
           const limitPct = typeof m.target_share_bps === 'number' ? (m.target_share_bps/100) : 0; // percent units
           const current = cur; // percent
           const potential = typeof m._sim_share_pct === 'number' ? m._sim_share_pct : current; // percent
-          const scale = 100; // absolute scale for comparability
-
           const segLimit = document.createElement('div'); segLimit.className = 'seg limit';
           segLimit.style.left = '0%';
-          segLimit.style.width = Math.max(0, Math.min(100, limitPct)).toFixed(2)+'%';
+          segLimit.style.width = pos(limitPct, scalePct).toFixed(2)+'%';
 
           const segCurrent = document.createElement('div'); segCurrent.className = 'seg current';
           segCurrent.style.left = '0%';
-          segCurrent.style.width = Math.max(0, Math.min(limitPct, current)).toFixed(2)+'%';
+          segCurrent.style.width = pos(Math.min(current, limitPct), scalePct).toFixed(2)+'%';
 
           const overflow = Math.max(0, current - limitPct);
           const segOver = document.createElement('div'); segOver.className = 'seg overflow';
-          segOver.style.left = Math.max(0, Math.min(100, limitPct)).toFixed(2)+'%';
-          segOver.style.width = Math.max(0, Math.min(100, overflow)).toFixed(2)+'%';
+          segOver.style.left = pos(limitPct, scalePct).toFixed(2)+'%';
+          segOver.style.width = Math.max(0, pos(current, scalePct) - pos(limitPct, scalePct)).toFixed(2)+'%';
 
           const growth = Math.max(0, potential - current);
           const segSim = document.createElement('div'); segSim.className = 'seg sim';
-          segSim.style.left = Math.max(0, Math.min(100, Math.min(current, limitPct))).toFixed(2)+'%';
-          segSim.style.width = Math.max(0, Math.min(100, Math.min(growth, Math.max(0, limitPct - current)))).toFixed(2)+'%';
+          segSim.style.left = pos(Math.min(current, limitPct), scalePct).toFixed(2)+'%';
+          segSim.style.width = Math.max(0, pos(Math.min(potential, limitPct), scalePct) - pos(Math.min(current, limitPct), scalePct)).toFixed(2)+'%';
+
+          // Limit marker line
+          const marker = document.createElement('div'); marker.className = 'limit-line';
+          marker.style.left = pos(limitPct, scalePct).toFixed(2)+'%';
 
           bar.appendChild(segLimit);
           bar.appendChild(segCurrent);
           if (overflow > 0) bar.appendChild(segOver);
           if (growth > 0) bar.appendChild(segSim);
+          bar.appendChild(marker);
           mid.appendChild(bar);
 
           const right = document.createElement('div'); right.className = 'right';
@@ -258,6 +275,11 @@
           if (capEth > 0) {
             const b2 = document.createElement('span'); b2.className = 'badge'; b2.textContent = `Capacity ${fmt0.format(capEth)} ETH`;
             right.appendChild(b2);
+          }
+          // Off-scale indicator
+          if (current > scalePct || potential > scalePct || limitPct > scalePct) {
+            const b3 = document.createElement('span'); b3.className = 'badge'; b3.textContent = `clipped at ${scalePct}%`;
+            right.appendChild(b3);
           }
 
           row.appendChild(left); row.appendChild(mid); row.appendChild(right);
@@ -275,13 +297,14 @@
 
         const inp = document.getElementById('inp-eth');
         const rng = document.getElementById('range-eth');
+        const selScale = document.getElementById('sel-scale');
         const btnMax = document.getElementById('btn-max');
         const btnReset = document.getElementById('btn-reset');
         const totalCapEth = modules.reduce((s, m) => s + (m.depositable_eth || 0), 0);
         rng.max = String(totalCapEth);
         rng.value = inp.value;
 
-        const renderNow = () => render(modules, Number(inp.value || 0));
+        const renderNow = () => render(modules, Number(inp.value || 0), Number(selScale.value || 100));
         renderNow();
 
         inp.addEventListener('input', () => {
@@ -296,6 +319,7 @@
           inp.value = String(val);
           renderNow();
         });
+        selScale.addEventListener('change', renderNow);
         btnMax.addEventListener('click', () => { inp.value = String(totalCapEth); rng.value = String(totalCapEth); renderNow(); });
         btnReset.addEventListener('click', () => { inp.value = '0'; rng.value = '0'; renderNow(); });
       }
