@@ -213,7 +213,8 @@
           const bps = typeof m.target_share_bps === 'number' ? (m.target_share_bps/100).toFixed(2) + '%' : '—';
           const meta = document.createElement('div'); meta.className = 'meta';
           const cur = typeof m._current_share === 'number' ? m._current_share : (m.current_share_pct || 0);
-          meta.textContent = `Current ${fmt.format(cur)}% · Limit ${bps}`;
+          const simPct = typeof m._sim_share_pct === 'number' ? m._sim_share_pct : cur;
+          meta.textContent = `Current ${fmt.format(cur)}% → Simulated ${fmt.format(simPct)}% · Limit ${bps}`;
           left.appendChild(name); left.appendChild(meta);
 
           const mid = document.createElement('div');
