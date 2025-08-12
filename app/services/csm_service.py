@@ -140,9 +140,16 @@ class CsmService:
             if pos:
                 op = {**op, **pos}
             enriched_ops.append(op)
+        # Best-effort current block number (for context)
+        block_number: Optional[int]
+        try:
+            block_number = int(self.adapter.web3.eth.block_number)  # type: ignore[attr-defined]
+        except Exception:
+            block_number = None
         return {
             "queue": queue,
             "node_operators": enriched_ops,
+            "block_number": block_number,
         }
 
 

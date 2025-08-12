@@ -77,6 +77,14 @@
       .barpos .skipped { position:absolute; top:0; bottom:0; background: repeating-linear-gradient(45deg, rgba(239,68,68,0.55), rgba(239,68,68,0.55) 6px, rgba(239,68,68,0.35) 6px, rgba(239,68,68,0.35) 12px); }
       .poslabel { font-size: 12px; color: var(--muted); }
     </style>
+    <script>
+      window.__CSM_MODE = '{{ mode | default("backend") }}';
+      window.__CSM_INITIAL_DATA = {{ (initial_data_json | safe) if initial_data_json is defined else 'null' }};
+    </script>
+    {% if mode == 'rpc' %}
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    {% endif %}
   </head>
   <body>
     <div class="wrap">
@@ -88,6 +96,7 @@
         <div class="actions">
           <a href="/">Home</a>
           <a href="/docs">API Docs</a>
+          <a href="/csm/snapshot" title="Download a static snapshot HTML of this page at the current block">Snapshot</a>
         </div>
       </div>
 
@@ -99,6 +108,18 @@
 
       <div class="section">
         <h3>Queue Visualization</h3>
+        {% if mode == 'rpc' %}
+        <div class="controls" id="rpc-controls">
+          <label class="muted">RPC URL</label>
+          <input id="rpc-url" type="url" placeholder="http://localhost:8545" style="width: 280px; padding:4px 6px;" />
+          <label class="muted">CSM</label>
+          <input id="csm-address" type="text" placeholder="0x..." style="width: 280px; padding:4px 6px;" />
+          <label class="muted">Block</label>
+          <input id="block-number" type="number" placeholder="latest" style="width: 120px; padding:4px 6px;" />
+          <a id="rpc-load" class="button" href="#" onclick="return false;">Load</a>
+          <span id="rpc-status" class="muted"></span>
+        </div>
+        {% endif %}
         <div class="controls">
           <label for="zoom">Zoom</label>
           <input id="zoom" type="range" min="1" max="5" step="0.5" value="1" />
@@ -127,7 +148,7 @@
         return `rgb(${r}, ${g}, ${b})`;
       }
 
-      async function load() {
+      async function loadBackend() {
         const meta = document.getElementById('meta');
         const queueEl = document.getElementById('queue');
         const opsEl = document.getElementById('ops');
@@ -136,15 +157,19 @@
         const statKeys = document.getElementById('stat-keys');
         const statOps = document.getElementById('stat-ops');
         try {
-          const res = await fetch('/api/csm/state');
-          if (!res.ok) throw new Error('Failed to fetch /api/csm/state');
-          const data = await res.json();
+          const embedded = window.__CSM_INITIAL_DATA || null;
+          let data = embedded;
+          if (!data) {
+            const res = await fetch('/api/csm/state');
+            if (!res.ok) throw new Error('Failed to fetch /api/csm/state');
+            data = await res.json();
+          }
           const q = data.queue || { head: 0, tail: 0, size: 0, items: [] };
           const items = Array.isArray(q.items) ? q.items : [];
           const ops = Array.isArray(data.node_operators) ? data.node_operators : [];
 
           meta.textContent = `Queue size ${q.size} (head ${q.head}, tail ${q.tail}). ` +
-            `${items.reduce((s,i)=>s+i.count,0)} keys enqueued in total.`;
+            `${items.reduce((s,i)=>s+i.count,0)} keys enqueued in total.` + (data.block_number != null ? ` (block ${data.block_number})` : '');
           statSize.textContent = nf(q.size || 0);
           statKeys.textContent = nf(items.reduce((s,i)=>s + (Number(i.count)||0), 0));
           statOps.textContent = nf([...new Set(items.map(i => i.node_operator_id))].length);
@@ -164,6 +189,49 @@
         } catch (err) {
           meta.textContent = 'Error loading CSM state. Check console and config.';
           console.error(err);
+        }
+      }
+
+      async function bootstrap() {
+        const mode = window.__CSM_MODE || 'backend';
+        if (mode === 'backend' || window.__CSM_INITIAL_DATA) {
+          await loadBackend();
+        } else if (mode === 'rpc') {
+          // wait for user to click Load; no-op here
+        }
+        // Common listeners for zoom/merge once any data is present
+        const rerender = () => renderQueue(window.__csmQueueItems || [], window.__csmOps || []);
+        document.getElementById('zoom').addEventListener('input', rerender);
+        document.getElementById('merge-toggle').addEventListener('change', rerender);
+
+        if (mode === 'rpc') {
+          const btn = document.getElementById('rpc-load');
+          const status = document.getElementById('rpc-status');
+          btn.addEventListener('click', async () => {
+            const rpc = (document.getElementById('rpc-url').value || '').trim();
+            const addr = (document.getElementById('csm-address').value || '').trim();
+            const block = (document.getElementById('block-number').value || '').trim();
+            if (!rpc || !addr) { status.textContent = 'Enter RPC URL and CSM address.'; return; }
+            try {
+              btn.setAttribute('aria-busy', 'true'); status.textContent = 'Loading…';
+              const state = await fetchCsmState(rpc, addr, block ? (block === 'latest' ? 'latest' : Number(block)) : undefined);
+              const q = state.queue || { items: [], size: 0, head: 0, tail: 0 };
+              const items = Array.isArray(q.items) ? q.items : [];
+              const ops = Array.isArray(state.node_operators) ? state.node_operators : [];
+              window.__csmQueueItems = items; window.__csmOps = ops;
+              renderQueue(items, ops); renderOperators(ops);
+              const meta = document.getElementById('meta');
+              meta.textContent = `Queue size ${q.size} (head ${q.head}, tail ${q.tail}). ` + `${items.reduce((s,i)=>s+i.count,0)} keys enqueued in total.` + (state.block_number != null ? ` (block ${state.block_number})` : '');
+              document.getElementById('stat-size').textContent = nf(q.size || 0);
+              document.getElementById('stat-keys').textContent = nf(items.reduce((s,i)=>s + (Number(i.count)||0), 0));
+              document.getElementById('stat-ops').textContent = nf([...new Set(items.map(i => i.node_operator_id))].length);
+              status.textContent = `Loaded ${q.size} queue items`;
+            } catch (e) {
+              console.error(e); status.textContent = 'Error loading from RPC';
+            } finally {
+              btn.removeAttribute('aria-busy');
+            }
+          });
         }
       }
 
@@ -438,7 +506,51 @@
         opsEl.appendChild(table);
       }
 
-      load();
+      // Minimal ABI fetcher for RPC mode
+      async function fetchCsmState(rpcUrl, csmAddr, blockTag) {
+        if (typeof ethers === 'undefined') throw new Error('ethers.js not loaded');
+        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+        const ABI = [
+          "function depositQueue() view returns (uint128 head, uint128 tail)",
+          "function depositQueueItem(uint128 index) view returns (uint256)",
+          "function getNodeOperatorsCount() view returns (uint256)",
+          "function getNodeOperatorIds(uint256 offset, uint256 limit) view returns (uint256[])",
+          "function getNodeOperatorSummary(uint256 nodeOperatorId) view returns (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
+          "function getNodeOperatorIsActive(uint256 nodeOperatorId) view returns (bool)",
+        ];
+        const csm = new ethers.Contract(csmAddr, ABI, provider);
+        const callOpts = blockTag ? { blockTag } : {};
+        const q = await csm.depositQueue(callOpts);
+        const head = Number((q.head ?? q[0]).toString());
+        const tail = Number((q.tail ?? q[1]).toString());
+        const TWO = ethers.BigNumber.from(2), POW64 = TWO.pow(64), POW128 = TWO.pow(128);
+        const items = [];
+        for (let i = head; i < tail; i++) {
+          const packed = await csm.depositQueueItem(i, callOpts);
+          const n = ethers.BigNumber.from(packed);
+          const hi128 = n.div(POW128);
+          const nodeId = hi128.div(POW64).mod(POW64).toNumber();
+          const count = hi128.mod(POW64).toNumber();
+          items.push({ index: i, node_operator_id: nodeId, count });
+        }
+        const countBn = await csm.getNodeOperatorsCount(callOpts); const total = Number(countBn.toString());
+        const ids = [];
+        for (let off = 0; off < total; ) { const lim = Math.min(500, total - off); const arr = await csm.getNodeOperatorIds(off, lim, callOpts); ids.push(...arr.map(x => Number(x.toString()))); off += lim; }
+        const queuedMap = new Map(); for (const it of items) queuedMap.set(it.node_operator_id, (queuedMap.get(it.node_operator_id) || 0) + (it.count || 0));
+        const ops = [];
+        for (const id of ids) {
+          const s = await csm.getNodeOperatorSummary(id, callOpts);
+          const deposited = Number(s[6].toString()); const depositable = Number(s[7].toString());
+          let isActive = null; try { isActive = !!(await csm.getNodeOperatorIsActive(id, callOpts)); } catch (_) {}
+          ops.push({ id, deposited_keys: deposited, depositable_keys: depositable, enqueued_keys: (queuedMap.get(id) || 0), is_active: isActive });
+        }
+        const positions = new Map(); let ahead = 0; for (const it of items) { const id = it.node_operator_id; const cnt = Number(it.count || 0); if (!positions.has(id)) positions.set(id, { first_queue_index: it.index, queued_keys_total: cnt, position_keys_ahead: ahead }); else positions.get(id).queued_keys_total += cnt; ahead += cnt; }
+        const enriched = ops.map(o => Object.assign({}, o, positions.get(o.id) || {}));
+        const blockNum = await provider.getBlockNumber().catch(() => null);
+        return { queue: { head, tail, size: Math.max(0, tail - head), items }, node_operators: enriched, block_number: blockNum };
+      }
+
+      bootstrap();
     </script>
   </body>
   </html>
