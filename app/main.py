@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 import app.deps as deps
 from app.services.router_service import RouterService
+from app.services.csm_service import CsmService
 
 app = FastAPI(title="Stake Allocation Simulation")
 
@@ -29,6 +30,11 @@ async def index(request: Request):
 @app.get("/simulate", response_class=HTMLResponse, tags=["ui"])
 async def simulate(request: Request):
     return templates.TemplateResponse(request, "simulator.html", {"title": "Stake Allocation Simulator"})
+
+
+@app.get("/csm", response_class=HTMLResponse, tags=["ui"])
+async def csm_page(request: Request):
+    return templates.TemplateResponse(request, "csm.html", {"title": "CSM Queue"})
 
 
 @app.get("/api/modules", tags=["api"])
@@ -67,3 +73,9 @@ async def api_modules(service: RouterService = Depends(deps.get_router_service))
         })
         enriched.append(d)
     return enriched
+
+
+@app.get("/api/csm/state", tags=["api"])
+async def api_csm_state(service: CsmService = Depends(deps.get_csm_service)) -> Dict[str, Any]:
+    """Return combined CSM state: deposit queue and node operators with positions."""
+    return service.snapshot()

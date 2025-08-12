@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0b1020;
+        --card: #0f172a;
+        --muted: #94a3b8;
+        --fg: #e5e7eb;
+        --line: #1f2937;
+        --accent: #60a5fa;
+        --good: #22c55e;
+        --soft: #0b1224;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f8fafc;
+          --card: #ffffff;
+          --muted: #6b7280;
+          --fg: #0f172a;
+          --line: #e5e7eb;
+          --accent: #2563eb;
+          --good: #16a34a;
+          --soft: #f1f5f9;
+        }
+      }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: radial-gradient(1200px 800px at 10% -10%, rgba(37,99,235,0.08), transparent),
+                    radial-gradient(1000px 700px at 110% 10%, rgba(34,197,94,0.06), transparent),
+                    var(--bg);
+        color: var(--fg);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      .wrap { max-width: 1100px; margin: 28px auto; padding: 0 16px; }
+      h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: 0.2px; }
+      .muted { color: var(--muted); font-size: 12px; }
+      .topbar { display:flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+      .actions a { display:inline-block; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--fg); background: linear-gradient(0deg, var(--soft), transparent); }
+      .actions a + a { margin-left: 6px; }
+
+      .stats { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin: 12px 0 18px; }
+      .stat { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.02)), var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+      .stat .label { font-size: 12px; color: var(--muted); }
+      .stat .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+
+      .section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 14px 0; box-shadow: 0 10px 26px rgba(0,0,0,0.10); }
+      .section h3 { margin: 0 0 10px; font-size: 16px; letter-spacing: 0.2px; }
+
+      .legend { display:flex; gap:10px; flex-wrap:wrap; margin: 8px 0 10px; }
+      .badge { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; background: linear-gradient(0deg, var(--soft), transparent); display:inline-flex; align-items:center; gap:8px; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; display:inline-block; }
+      .controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin: 6px 0 10px; }
+      .controls label { font-size: 12px; color: var(--muted); }
+      .queue-bar { position: relative; height: 36px; border: 1px solid var(--line); border-radius: 10px; overflow: auto; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.06)); padding: 6px; }
+      .queue-track { position: relative; display: flex; height: 24px; min-width: 100%; }
+      .seg { position: relative; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; border-right: 1px solid rgba(255,255,255,0.08); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(0,0,0,0.75); text-shadow: 0 1px 0 rgba(255,255,255,0.25); min-width: 2px; }
+      .seg .skip { position: absolute; top: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(239,68,68,0.50), rgba(239,68,68,0.50) 6px, rgba(239,68,68,0.35) 6px, rgba(239,68,68,0.35) 12px); }
+
+      table { width: 100%; border-collapse: collapse; }
+      thead th { text-align: left; font-weight: 600; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); padding: 8px; position: sticky; top: 0; background: var(--card); }
+      thead th.sortable { cursor: pointer; user-select: none; }
+      thead th .ind { margin-left: 6px; opacity: 0.7; }
+      tbody td { padding: 10px 8px; border-top: 1px solid var(--line); }
+      tbody tr:nth-child(odd) { background: linear-gradient(0deg, rgba(255,255,255,0.02), transparent); }
+      tbody tr:hover { background: linear-gradient(0deg, rgba(37,99,235,0.10), transparent); }
+      td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+      .barpos { position: relative; height: 12px; border: 1px solid var(--line); border-radius: 999px; background: linear-gradient(180deg, #0e1729, #0b1220); overflow: hidden; }
+      .barpos .ahead { position:absolute; top:0; left:0; bottom:0; background: #1f2937; }
+      .barpos .queued { position:absolute; top:0; bottom:0; background: linear-gradient(90deg, rgba(34,197,94,0.9), rgba(34,197,94,0.6)); }
+      .barpos .skipped { position:absolute; top:0; bottom:0; background: repeating-linear-gradient(45deg, rgba(239,68,68,0.55), rgba(239,68,68,0.55) 6px, rgba(239,68,68,0.35) 6px, rgba(239,68,68,0.35) 12px); }
+      .poslabel { font-size: 12px; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <div>
+          <h1>CSM Queue</h1>
+          <div id="meta" class="muted"></div>
+        </div>
+        <div class="actions">
+          <a href="/">Home</a>
+          <a href="/docs">API Docs</a>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="label">Queue Size</div><div id="stat-size" class="value">–</div></div>
+        <div class="stat"><div class="label">Enqueued Keys</div><div id="stat-keys" class="value">–</div></div>
+        <div class="stat"><div class="label">Unique Operators</div><div id="stat-ops" class="value">–</div></div>
+      </div>
+
+      <div class="section">
+        <h3>Queue Visualization</h3>
+        <div class="controls">
+          <label for="zoom">Zoom</label>
+          <input id="zoom" type="range" min="1" max="5" step="0.5" value="1" />
+          <label><input id="merge-toggle" type="checkbox" checked /> Merge consecutive batches</label>
+          <span id="seg-info" class="muted"></span>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div id="queue" class="queue-bar"></div>
+      </div>
+
+      <div class="section">
+        <h3>Node Operators</h3>
+        <div id="ops"></div>
+      </div>
+    </div>
+
+    <script>
+      const _nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+      const nf = (n) => _nf.format(n).replace(/,/g, ' ');
+
+      function hashToColor(id) {
+        // Stable pseudo-random pastel-ish color from id
+        let x = Number(id) >>> 0;
+        x = (x ^ 0x45d9f3b) >>> 0; x = (x + 0x27d4eb2d) >>> 0; x ^= x >>> 15;
+        const r = 160 + (x & 0x3F), g = 140 + ((x >> 6) & 0x3F), b = 120 + ((x >> 12) & 0x3F);
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+
+      async function load() {
+        const meta = document.getElementById('meta');
+        const queueEl = document.getElementById('queue');
+        const opsEl = document.getElementById('ops');
+        const legendEl = document.getElementById('legend');
+        const statSize = document.getElementById('stat-size');
+        const statKeys = document.getElementById('stat-keys');
+        const statOps = document.getElementById('stat-ops');
+        try {
+          const res = await fetch('/api/csm/state');
+          if (!res.ok) throw new Error('Failed to fetch /api/csm/state');
+          const data = await res.json();
+          const q = data.queue || { head: 0, tail: 0, size: 0, items: [] };
+          const items = Array.isArray(q.items) ? q.items : [];
+          const ops = Array.isArray(data.node_operators) ? data.node_operators : [];
+
+          meta.textContent = `Queue size ${q.size} (head ${q.head}, tail ${q.tail}). ` +
+            `${items.reduce((s,i)=>s+i.count,0)} keys enqueued in total.`;
+          statSize.textContent = nf(q.size || 0);
+          statKeys.textContent = nf(items.reduce((s,i)=>s + (Number(i.count)||0), 0));
+          statOps.textContent = nf([...new Set(items.map(i => i.node_operator_id))].length);
+
+          // Store globally for re-render on control change
+          window.__csmQueueItems = items;
+          window.__csmOps = ops;
+          const rerender = () => renderQueue(window.__csmQueueItems, window.__csmOps);
+          document.getElementById('zoom').addEventListener('input', rerender);
+          document.getElementById('merge-toggle').addEventListener('change', rerender);
+          renderQueue(items, ops);
+
+          // Render operators table (sortable)
+          renderOperators(window.__csmOps);
+
+          // Table is rendered via renderOperators() above (sortable).
+        } catch (err) {
+          meta.textContent = 'Error loading CSM state. Check console and config.';
+          console.error(err);
+        }
+      }
+
+      function renderQueue(items, ops) {
+        const queueEl = document.getElementById('queue');
+        const legendEl = document.getElementById('legend');
+        const segInfo = document.getElementById('seg-info');
+        queueEl.replaceChildren();
+        legendEl.replaceChildren();
+        const merge = document.getElementById('merge-toggle').checked;
+        const zoom = Number(document.getElementById('zoom').value || 1);
+
+        const totalKeys = items.reduce((s, it) => s + (Number(it.count) || 0), 0);
+        if (totalKeys === 0) {
+          queueEl.textContent = 'Queue is empty';
+          segInfo.textContent = '';
+          return;
+        }
+
+        // Compute per-NO skipped keys: max(0, queued_total - depositable)
+        const skippedByNO = {};
+        try {
+          for (const o of (ops || [])) {
+            const queued = Number(o.queued_keys_total || 0);
+            const depositable = Number(o.depositable_keys || 0);
+            const skip = Math.max(0, queued - depositable);
+            if (skip > 0) skippedByNO[o.id] = skip;
+          }
+        } catch (_) {}
+
+        // Optionally merge consecutive segments from the same operator
+        const segments = [];
+        if (merge) {
+          for (const it of items) {
+            const last = segments[segments.length - 1];
+            if (last && last.node_operator_id === it.node_operator_id) {
+              last.count += Number(it.count) || 0;
+              last.end_index = it.index;
+            } else {
+              segments.push({ node_operator_id: it.node_operator_id, count: Number(it.count) || 0, start_index: it.index, end_index: it.index });
+            }
+          }
+        } else {
+          for (const it of items) segments.push({ node_operator_id: it.node_operator_id, count: Number(it.count) || 0, start_index: it.index, end_index: it.index });
+        }
+
+        segInfo.textContent = merge ? `Merged ${items.length} → ${segments.length} segments` : `${segments.length} segments`;
+
+        // Assign skipped counts to segments from tail to head
+        const remaining = { ...skippedByNO };
+        for (let i = segments.length - 1; i >= 0; i--) {
+          const seg = segments[i];
+          const rem = remaining[seg.node_operator_id] || 0;
+          if (rem > 0) {
+            const take = Math.min(seg.count, rem);
+            seg.skip = take;
+            remaining[seg.node_operator_id] = rem - take;
+          } else {
+            seg.skip = 0;
+          }
+        }
+
+        // Build color map
+        const colors = new Map();
+        for (const seg of segments) {
+          if (!colors.has(seg.node_operator_id)) colors.set(seg.node_operator_id, hashToColor(seg.node_operator_id));
+        }
+
+        // Inner track scaled by zoom for horizontal scrolling
+        const track = document.createElement('div');
+        track.className = 'queue-track';
+        track.style.width = (zoom * 100).toFixed(2) + '%';
+
+        // Label threshold in fraction of total (based on container width and zoom)
+        const containerPx = Math.max(1, queueEl.clientWidth);
+        const labelPx = 36; // min px to show numbers
+        const labelFrac = labelPx / (containerPx * zoom);
+
+        for (const seg of segments) {
+          const frac = Math.max(0, (seg.count || 0) / totalKeys);
+          const el = document.createElement('div');
+          el.className = 'seg';
+          el.style.width = (frac * 100).toFixed(3) + '%';
+          el.style.background = colors.get(seg.node_operator_id);
+          const skipped = Number(seg.skip || 0);
+          const usable = Math.max(0, (seg.count || 0) - skipped);
+          let tip = `NO ${seg.node_operator_id} · ${seg.count} keys`;
+          if (skipped > 0) tip += ` (${usable} usable, ${skipped} skipped)`;
+          tip += ` · idx ${seg.start_index}${seg.end_index !== seg.start_index ? '–' + seg.end_index : ''}`;
+          el.title = tip;
+          if (frac >= labelFrac) el.textContent = skipped > 0 ? `${usable}/${seg.count}` : String(seg.count);
+          if (skipped > 0 && seg.count > 0) {
+            const skipDiv = document.createElement('div');
+            skipDiv.className = 'skip';
+            const skipFrac = Math.max(0, skipped / seg.count);
+            skipDiv.style.width = (skipFrac * 100).toFixed(2) + '%';
+            el.appendChild(skipDiv);
+          }
+          track.appendChild(el);
+        }
+        queueEl.appendChild(track);
+
+        // Legend per NO id
+        const seen = new Set();
+        for (const seg of segments) {
+          const id = seg.node_operator_id;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const badge = document.createElement('span');
+          badge.className = 'badge';
+          const dot = document.createElement('span');
+          dot.className = 'dot';
+          dot.style.background = colors.get(id);
+          const txt = document.createElement('span');
+          txt.textContent = `NO ${id}`;
+          badge.appendChild(dot);
+          badge.appendChild(txt);
+          legendEl.appendChild(badge);
+        }
+      }
+
+      // Sorting state
+      let __sortKey = 'id';
+      let __sortDir = 'asc'; // 'asc' | 'desc'
+
+      function renderOperators(ops) {
+        const opsEl = document.getElementById('ops');
+        opsEl.replaceChildren();
+
+        const headers = [
+          { key: 'id', label: 'ID', align: 'left' },
+          { key: 'deposited_keys', label: 'Deposited', align: 'right' },
+          { key: 'depositable_keys', label: 'Depositable', align: 'right' },
+          { key: 'enqueued_keys', label: 'Enqueued', align: 'right' },
+          { key: 'share_pct', label: 'Share %', align: 'right', title: 'Current module share = deposited_keys / sum(deposited_keys) × 100' },
+          { key: 'potential_share_pct', label: 'Potential %', align: 'right', title: 'Potential share if all depositable keys were deposited = (deposited_keys + depositable_keys) / sum(deposited_keys + depositable_keys) × 100' },
+          { key: 'is_active', label: 'Active', align: 'left' },
+          { key: 'first_queue_index', label: 'First Queue Index', align: 'left' },
+          { key: 'position', label: 'Position', align: 'left' },
+        ];
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const headTr = document.createElement('tr');
+        for (const h of headers) {
+          const th = document.createElement('th');
+          th.textContent = h.label;
+          th.classList.add('sortable');
+          th.addEventListener('click', () => {
+            if (__sortKey === h.key) {
+              __sortDir = (__sortDir === 'asc') ? 'desc' : 'asc';
+            } else {
+              __sortKey = h.key;
+              __sortDir = 'asc';
+            }
+            renderOperators(window.__csmOps || []);
+          });
+          const ind = document.createElement('span');
+          ind.className = 'ind';
+          if (__sortKey === h.key) ind.textContent = (__sortDir === 'asc') ? '▲' : '▼';
+          th.appendChild(ind);
+          if (h.title) th.title = h.title;
+          if (h.align === 'right') th.style.textAlign = 'right';
+          headTr.appendChild(th);
+        }
+        thead.appendChild(headTr);
+
+        // Precompute shares for sorting/rendering
+        const sumDeposited = ops.reduce((s, o) => s + (Number(o.deposited_keys || 0)), 0);
+        const sumDepositable = ops.reduce((s, o) => s + (Number(o.depositable_keys || 0)), 0);
+        const denomPotential = sumDeposited + sumDepositable;
+        const augmented = ops.map(o => {
+          const dep = Number(o.deposited_keys || 0);
+          const depbl = Number(o.depositable_keys || 0);
+          const share = sumDeposited > 0 ? (dep / sumDeposited) * 100 : null;
+          const pot = denomPotential > 0 ? ((dep + depbl) / denomPotential) * 100 : null;
+          return Object.assign({}, o, {
+            __share_pct: share,
+            __potential_share_pct: pot,
+          });
+        });
+
+        // Sort ops
+        const getVal = (o, key) => {
+          if (key === 'position') return (Number(o.position_keys_ahead || 0) + Number(o.queued_keys_total || 0));
+          if (key === 'is_active') return o.is_active === true ? 1 : (o.is_active === false ? 0 : -1);
+          if (key === 'share_pct') return o.__share_pct;
+          if (key === 'potential_share_pct') return o.__potential_share_pct;
+          return o[key];
+        };
+        const sorted = [...augmented].sort((a, b) => {
+          const av = getVal(a, __sortKey);
+          const bv = getVal(b, __sortKey);
+          const aMissing = (av === undefined || av === null || Number.isNaN(av));
+          const bMissing = (bv === undefined || bv === null || Number.isNaN(bv));
+          if (aMissing !== bMissing) return aMissing ? 1 : -1; // missing always last
+          const toNum = (v) => (typeof v === 'number') ? v : (v === true ? 1 : (v === false ? 0 : 0));
+          const aNum = toNum(av);
+          const bNum = toNum(bv);
+          let cmp = 0;
+          if (aNum < bNum) cmp = -1; else if (aNum > bNum) cmp = 1; else cmp = 0;
+          return __sortDir === 'asc' ? cmp : -cmp;
+        });
+
+        const tbody = document.createElement('tbody');
+        const maxSpan = Math.max(1, ...sorted.map(o => Number(o.position_keys_ahead || 0) + Number(o.queued_keys_total || 0)));
+        for (const o of sorted) {
+          const tr = document.createElement('tr');
+          const td = (v, cls='') => { const d = document.createElement('td'); if (cls) d.className = cls; d.textContent = String(v ?? ''); return d; };
+          const tdTitle = (v, cls='', title='') => { const d = document.createElement('td'); if (cls) d.className = cls; d.textContent = String(v ?? ''); if (title) d.title = title; return d; };
+          tr.appendChild(td(o.id));
+          tr.appendChild(td(nf(o.deposited_keys), 'num'));
+          tr.appendChild(td(nf(o.depositable_keys), 'num'));
+          tr.appendChild(td(nf(o.enqueued_keys), 'num'));
+          const fmtPct = (v) => (typeof v === 'number' ? `${v.toFixed(2)}%` : '');
+          const dep = Number(o.deposited_keys || 0);
+          const depbl = Number(o.depositable_keys || 0);
+          const shareTitle = (sumDeposited > 0) ? `${dep} / ${sumDeposited} × 100` : 'N/A';
+          const potTitle = (denomPotential > 0) ? `${dep} + ${depbl} / ${denomPotential} × 100` : 'N/A';
+          tr.appendChild(tdTitle(fmtPct(o.__share_pct), 'num', `Share: ${shareTitle}`));
+          tr.appendChild(tdTitle(fmtPct(o.__potential_share_pct), 'num', `Potential: ${potTitle}`));
+          tr.appendChild(td(o.is_active === true ? 'Yes' : (o.is_active === false ? 'No' : '')));
+          tr.appendChild(td(o.first_queue_index ?? ''));
+
+          const posTd = document.createElement('td');
+          const wrap = document.createElement('div');
+          wrap.style.display = 'flex';
+          wrap.style.flexDirection = 'column';
+          wrap.style.gap = '4px';
+          const bar = document.createElement('div');
+          bar.className = 'barpos';
+          bar.style.width = '360px';
+          const ahead = Number(o.position_keys_ahead || 0);
+          const totalQueued = Number(o.queued_keys_total || 0);
+          const depositable = Number(o.depositable_keys || 0);
+          const skipped = Math.max(0, totalQueued - depositable);
+          const queuedUsable = Math.max(0, totalQueued - skipped);
+          const total = Math.max(1, maxSpan);
+          const aheadPct = Math.min(100, Math.max(0, (ahead / total) * 100));
+          const queuedUsablePct = Math.min(100, Math.max(0, (queuedUsable / total) * 100));
+          const skippedPct = Math.min(100, Math.max(0, (skipped / total) * 100));
+          const aheadDiv = document.createElement('div');
+          aheadDiv.className = 'ahead';
+          aheadDiv.style.width = aheadPct.toFixed(2) + '%';
+          const queuedDiv = document.createElement('div');
+          queuedDiv.className = 'queued';
+          queuedDiv.style.left = aheadPct.toFixed(2) + '%';
+          queuedDiv.style.width = queuedUsablePct.toFixed(2) + '%';
+          bar.appendChild(aheadDiv);
+          bar.appendChild(queuedDiv);
+          if (skippedPct > 0) {
+            const skippedDiv = document.createElement('div');
+            skippedDiv.className = 'skipped';
+            skippedDiv.style.left = (aheadPct + queuedUsablePct).toFixed(2) + '%';
+            skippedDiv.style.width = skippedPct.toFixed(2) + '%';
+            bar.appendChild(skippedDiv);
+          }
+          const label = document.createElement('div');
+          label.className = 'poslabel';
+          label.textContent = skipped > 0
+            ? `${nf(ahead)} ahead · ${nf(queuedUsable)} in queue (${nf(skipped)} skipped)`
+            : `${nf(ahead)} ahead · ${nf(queuedUsable)} in queue`;
+          wrap.appendChild(bar);
+          wrap.appendChild(label);
+          posTd.appendChild(wrap);
+          tr.appendChild(posTd);
+
+          tbody.appendChild(tr);
+        }
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        opsEl.appendChild(table);
+      }
+
+      load();
+    </script>
+  </body>
+  </html>

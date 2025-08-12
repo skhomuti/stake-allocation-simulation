@@ -20,6 +20,9 @@ class Config:
     # ABI file names under `abi/`
     locator_abi: str = "locator.json"
     router_abi: str = "staking_router.json"
+    # Community Staking Module (CSM)
+    csm_address: Optional[str] = None
+    csm_abi: str = "csm.json"
 
 
 def load_config() -> Config:
@@ -29,6 +32,8 @@ def load_config() -> Config:
     router = os.getenv("STAKING_ROUTER_ADDRESS")
     locator_abi = os.getenv("LOCATOR_ABI", "locator.json")
     router_abi = os.getenv("ROUTER_ABI", "staking_router.json")
+    csm_address = os.getenv("COMMUNITY_STAKING_MODULE_ADDRESS")
+    csm_abi = os.getenv("CSM_ABI", "csm.json")
 
     return Config(
         eth_rpc_url=rpc,
@@ -37,4 +42,6 @@ def load_config() -> Config:
         staking_router_address=router,
         locator_abi=locator_abi,
         router_abi=router_abi,
+        csm_address=csm_address,
+        csm_abi=csm_abi,
     )

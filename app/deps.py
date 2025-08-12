@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from app.config import load_config
 from app.services.router_service import RouterService, make_router_service
+from app.services.csm_service import CsmService, make_csm_service
 
 
 @lru_cache(maxsize=1)
@@ -11,3 +12,8 @@ def get_router_service() -> RouterService:
     cfg = load_config()
     return make_router_service(cfg)
 
+
+@lru_cache(maxsize=1)
+def get_csm_service() -> CsmService:
+    cfg = load_config()
+    return make_csm_service(cfg)

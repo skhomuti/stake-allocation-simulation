@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: stake-sim-anvil
+    entrypoint: "anvil --fork-url ${FORK_URL:-} --port 8545 --host 0.0.0.0"
+    ports:
+      - "8545:8545"
+    environment:
+      # Optional: set to an upstream RPC to enable forking + response caching
+      - FORK_URL=${FORK_URL}
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stake-sim-app
+    ports:
+      - "8000:8000"
+    environment:
+      # Point the app at the local anvil JSON-RPC
+      - ETH_RPC_URL=http://anvil:8545
+      # Optional: fill in your contract addresses
+      - COMMUNITY_STAKING_MODULE_ADDRESS=${COMMUNITY_STAKING_MODULE_ADDRESS}
+      - LIDO_LOCATOR_ADDRESS=${LIDO_LOCATOR_ADDRESS}
+      - STAKING_ROUTER_ADDRESS=${STAKING_ROUTER_ADDRESS}
+    depends_on:
+      - anvil
+    restart: unless-stopped
